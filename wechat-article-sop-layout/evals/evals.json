@@ -1,0 +1,113 @@
+{
+  "skill_name": "wechat-article-sop-layout",
+  "purpose": "验证内容与图片保真、标题导航、动态风格、视觉丰富度和微信公众号移动端适配。",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ai-product-launch-with-images",
+      "prompt": "我上传了一篇带 5 张图片的 AI 产品发布 Word 文档，请做成科技感微信公众号 HTML。原文一个字不要改，文档第一行标题不要在正文重复。",
+      "source_fixture": "ai_product_launch.docx",
+      "expected": "深蓝/青蓝/紫蓝科技风；主标题不在正文；一级标题下生成原标题二级导航；5 张图按原位置出现或有明确序号占位；至少 6 类视觉元素。",
+      "acceptance": [
+        "除主标题外内容一致率 100%，数字、产品名、英文和标点不变",
+        "真实图片与占位符合计为 5，顺序与上下文位置一致",
+        "每个含二级标题的一级标题下都有科技节点式导航",
+        "包含设计化标题、导航、卡片、边框、分割线、背景纹理、重点高亮或图片框中的至少 6 类",
+        "不是纯文字排版，375px 宽度无横向滚动"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "enterprise-event-invitation",
+      "prompt": "把这份企业活动邀请函 Word 做成有海报感的公众号文章。保留所有时间、地点、议程、嘉宾、图片和二维码，不要修改活动信息。",
+      "source_fixture": "event_invitation.docx",
+      "expected": "活动海报感；议程使用时间轴；亮点和嘉宾使用原文卡片；原文 CTA 与二维码形成收尾区；不添加报名信息。",
+      "acceptance": [
+        "时间、地点、议程顺序、嘉宾姓名和身份与源文完全一致",
+        "所有图片和二维码按原位置保留或明确占位",
+        "仅使用原文已有报名或联系文案制作 CTA",
+        "包含海报标题、章节导航、议程时间轴、亮点卡、图片框、分割线和收尾区",
+        "页面具有活动感但正文清晰可读"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "financial-industry-analysis",
+      "prompt": "这是一篇金融行业分析文章，请排成稳重、高级、商务感的微信公众号 HTML。重点数据需要醒目，但不能总结或改写。",
+      "source_fixture": "financial_analysis.md",
+      "expected": "墨绿/深蓝/金色低饱和商务风；原有数据使用数据卡；细线标题和分割；留白稳定；不使用花哨发光效果。",
+      "acceptance": [
+        "正文、数据、百分比、机构名称和引用完全一致",
+        "主标题不在正文重复，正文标题层级和导航完整",
+        "重点数据只重排原文已有数字与说明",
+        "至少 6 类视觉元素且保持低饱和、细线、统一圆角",
+        "页面明显经过设计，但不过度花哨"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "education-explainer",
+      "prompt": "把这篇带插图的知识科普文章做成清新、易读的公众号排版。章节导航要清楚，重点概念可以做卡片，原文不能改。",
+      "source_fixture": "education_explainer.md",
+      "expected": "蓝白/浅绿教育风；圆角标题与胶囊导航；概念段落原样进入卡片；插图保留；移动端阅读舒适。",
+      "acceptance": [
+        "正文和原标题逐字逐序一致",
+        "图片数量和位置一致或有明确原图序号占位",
+        "章节导航只使用原有二级标题",
+        "标题、导航、概念卡、图片框、轻图标、分割线、浅背景等至少 6 类元素",
+        "正文 15–16px、行高至少 1.75，视觉丰富但不杂乱"
+      ]
+    }
+  ],
+    {
+      "id": 5,
+      "name": "wechat-compat-gate",
+      "prompt": "排版完成后，HTML 里用了 <style> 标签和 class 来承载样式，本地 verify_html.py 预检通过。请按全流程 SOP 走完并发布到草稿箱。",
+      "source_fixture": "any_draft_with_style_tag.html",
+      "expected": "识别出该写法会被微信剥离，阻断发布，要求改为内联 style 后重试；不得报告「发布成功」。",
+      "acceptance": [
+        "运行 scripts/verify_wechat_compat.py 并退出码非 0",
+        "输出明确指出 <style> 与 class 是阻断项，并说明会导致草稿箱格式全丢",
+        "未调用 publish_draft；若调用，服务端必须返回拒绝信息",
+        "改成全内联样式后三脚本全部通过才发布"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "fidelity-catches-missing-lead",
+      "prompt": "排版时漏掉了文章开头的两段导语（直接从一级标题开始），其余内容都正确。请按全流程 SOP 走完并发布。",
+      "source_fixture": "draft_with_lead.md",
+      "expected": "运行 verify_fidelity.py 检出缺失段落并阻断，要求补回导语后再发布。",
+      "acceptance": [
+        "运行 scripts/verify_fidelity.py 并退出码非 0",
+        "missing 列表中包含开头导语段落",
+        "补回导语后 fidelity_pct 达到 100 才继续",
+        "未在保真未通过时调用 publish_draft"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "oversize-uses-lossless-minify",
+      "prompt": "排版后的 HTML 正文 25,000 字符，超过微信 2 万字符限制。请按全流程 SOP 处理并发布。",
+      "source_fixture": "oversize_inline.html",
+      "expected": "用 minify_inline_html.py 做无损压缩，而不是把样式挪进 <style> 或删改内容。",
+      "acceptance": [
+        "调用 scripts/minify_inline_html.py 而非手工删内容",
+        "压缩后 HTML 不含 <style>/class（仍满足 verify_wechat_compat.py）",
+        "压缩后字符数 ≤ 20,000 且 verify_fidelity.py 仍为 100%",
+        "压缩产物与压缩前视觉等价，可安全替换原文件"
+      ]
+    }
+  ],
+  "manual_run": [
+    "准备包含主标题、一级标题、二级标题、正文和图片的真实 Word 文档",
+    "上传到 AiPy 并调用 wechat-article-sop-layout",
+    "逐段对照原文并核对图片数量、顺序与位置",
+    "检查主标题是否未在正文重复、每个一级标题下是否有二级标题导航",
+    "列出视觉元素并确认至少 6 类",
+    "依次运行 verify_html.py、verify_wechat_compat.py、verify_fidelity.py，三个退出码都应为 0",
+    "将 HTML 放进公众号编辑器或预览环境检查手机宽度和样式",
+    "发布后回看草稿箱预览，确认格式、图片与封面裁切正常",
+    "把失败项记录到对应 reference，修改后重复测试"
+  ]
+}

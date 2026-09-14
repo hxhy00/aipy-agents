@@ -1,0 +1,18 @@
+[project]
+name = "wechat-sop-publish-assistant"
+version = "0.4.0"
+description = "WeChat draft publisher extension for AiPy"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.23.1,<2",
+    "starlette>=0.50.0",
+    "uvicorn>=0.38.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "pyahocorasick>=2.3.1",
+    "python-docx>=1.1.2",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

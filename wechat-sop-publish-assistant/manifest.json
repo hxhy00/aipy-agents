@@ -1,0 +1,70 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-enterprise/wechat-sop-publish-assistant",
+  "display_name": "公众号SOP发布助手",
+  "version": "0.4.0",
+  "description": "公众号文章从终稿到草稿箱：解析终稿（Word/Markdown/TXT）为 Markdown、把排版好的 HTML 导入微信公众号草稿箱（发布前强制做微信渲染兼容性校验、正文图片中转上传、封面上传、写入草稿），并支持文字层校验（标点规范/品牌名/敏感词）。仅写草稿箱，不做正式群发。配合 wechat-article-sop-layout 技能可完成「终稿→选模板→排版→三重预检→草稿箱」全流程。",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.svg",
+  "server": {
+    "type": "python",
+    "entry_point": "main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "${__dirname}/main.py"
+      ],
+      "env": {
+        "WECHAT_APPID": "${user_config.appid}",
+        "WECHAT_APPSECRET": "${user_config.appsecret}",
+        "SENSITIVE_WORDLIST": "${user_config.wordlist}"
+      }
+    }
+  },
+  "user_config": {
+    "appid": {
+      "type": "string",
+      "title": "公众号 AppID",
+      "description": "微信公众号的 AppID（公众平台-设置与开发-基本配置）",
+      "required": true
+    },
+    "appsecret": {
+      "type": "string",
+      "title": "公众号 AppSecret",
+      "description": "微信公众号的 AppSecret（需已认证账号，且本机出口IP已加入后台IP白名单）",
+      "required": true
+    },
+    "wordlist": {
+      "type": "string",
+      "title": "自定义敏感词库路径（可选）",
+      "description": "一行一个词的 txt 文件本地路径。留空时仅使用内置词库（广告法极限词/医疗功效/金融承诺/导流词）。",
+      "required": false,
+      "default": ""
+    }
+  },
+  "prompts": [
+    {
+      "name": "发布到草稿箱",
+      "text": "我刚排版好了一篇公众号文章，请使用 publish_draft 工具把它导入公众号草稿箱：\n- HTML 路径：/path/to/排版.html\n- 标题：（请输入，≤32字）\n- 封面路径：/path/to/cover.jpg\n- 摘要：（可选，≤120字）\n- 作者：（可选，≤16字）"
+    },
+    {
+      "name": "文字校验",
+      "text": "请使用 check_text 工具对这篇文章做文字层校验，输出标点规范、品牌名（AiPY）、敏感词问题报告：\n- HTML 路径：/path/to/排版.html"
+    },
+    {
+      "name": "微信渲染兼容性自检",
+      "text": "请使用 check_wechat_compat 工具检查这个排版 HTML 能不能被微信正确渲染（确认样式全部内联、没有被微信剥离的 <style>/class/伪元素等写法）：\n- HTML 路径：/path/to/排版.html"
+    },
+    {
+      "name": "终稿 → 排版 → 草稿箱（全流程）",
+      "text": "请按 $wechat-article-sop-layout 技能里的「全流程 SOP」完成一篇公众号文章从终稿到草稿箱：\n1. [脚本] 运行 scripts/read_draft.py 解析终稿，拿到 Markdown 正文、主标题和图片路径\n2. [AI] 读取 style_matrix 选模板，生成公众号 HTML（正文保真 100%、主标题不进正文、每个一级标题下生成二级标题导航、至少 6 类视觉元素）；图片必须用本地路径，禁止 base64 和外链；样式必须全部内联，禁止 <style>/class/<script>/伪元素\n3. [脚本] 依次跑三重预检：verify_html.py（体积/图片/字段）→ verify_wechat_compat.py（渲染兼容性）→ verify_fidelity.py（内容保真）；正文超限时用 minify_inline_html.py 无损压缩；修完所有 errors 再继续\n4. [工具] 我确认后，用 publish_draft 写入公众号草稿箱（服务端会再强制校验一次兼容性）\n\n终稿路径：/path/to/终稿.docx\n封面路径：/path/to/cover.jpg"
+    }
+  ],
+  "keywords": [
+    "conversation-tool",
+    "内容运营"
+  ]
+}
