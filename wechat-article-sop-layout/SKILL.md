@@ -1,11 +1,26 @@
 ---
 name: wechat-article-sop-layout
-description: WeChat article SOP skill — layout design AND full-pipeline SOP for taking a Word/Markdown/TXT draft all the way to the WeChat Official Account draft box — parse manuscript, pick style, generate mobile-first WeChat HTML, pre-check, then publish via the wechat-sop-publish-assistant agent. Includes deterministic scripts (scripts/read_draft.py for docx/md/txt parsing, scripts/verify_html.py for volume/image/field validation, scripts/verify_wechat_compat.py to block <style>/class which WeChat strips and causes format loss in the draft box, scripts/verify_fidelity.py for 100% content-fidelity reverse checking, scripts/minify_inline_html.py for lossless inline-style compression, scripts/code_image.py for rendering fenced code blocks as WeChat-safe images — text code blocks always break in WeChat). Use for 公众号文章SOP、公众号排版、公众号美化、公众号视觉设计、生成公众号HTML、Word转公众号、企业宣传推文、活动推文、产品发布、公众号模板或风格学习, and for 终稿到草稿箱全流程、docx转公众号、文章解析与发布、从Word到公众号草稿箱. Preserve source wording, numbers, names, punctuation, paragraph order, heading structure, and embedded images; omit the document’s first-line main title from body HTML by default; generate a visual navigation block under each level-one body heading from its original level-two headings; dynamically combine rich titles, cards, borders, dividers, textures, highlights, image treatments, quotes, and other WeChat-safe visual elements instead of producing plain text or a fixed template. All styles MUST be inline style attributes — never <style> tags or class attributes.
+description: WeChat article SOP skill — layout design AND full-pipeline SOP for taking a Word/Markdown/TXT draft all the way to the WeChat Official Account draft box — parse manuscript, pick style, generate mobile-first WeChat HTML, pre-check, then publish via the wechat-sop-publish-assistant agent. Takes a 模板路径 (template path) parameter for user-supplied style reference (HTML/screenshot/markdown/case folder) learned via scripts/read_template.py; no template is built in, and when no template path is given the style falls back to references/style_matrix.md. Includes deterministic scripts (scripts/read_draft.py for docx/md/txt parsing, scripts/verify_html.py for volume/image/field validation, scripts/verify_wechat_compat.py to block <style>/class which WeChat strips and causes format loss in the draft box, scripts/verify_fidelity.py for 100% content-fidelity reverse checking, scripts/minify_inline_html.py for lossless inline-style compression, scripts/code_image.py for rendering fenced code blocks as WeChat-safe images — text code blocks always break in WeChat). Use for 公众号文章SOP、公众号排版、公众号美化、公众号视觉设计、生成公众号HTML、Word转公众号、企业宣传推文、活动推文、产品发布、公众号模板或风格学习, and for 终稿到草稿箱全流程、docx转公众号、文章解析与发布、从Word到公众号草稿箱. Preserve source wording, numbers, names, punctuation, paragraph order, heading structure, and embedded images; omit the document’s first-line main title from body HTML by default; generate a visual navigation block under each level-one body heading from its original level-two headings; dynamically combine rich titles, cards, borders, dividers, textures, highlights, image treatments, quotes, and other WeChat-safe visual elements instead of producing plain text or a fixed template. All styles MUST be inline style attributes — never <style> tags or class attributes.
 ---
 
 # AI 公众号视觉设计师
 
 像专业公众号视觉设计师一样分析、设计、排版和验收。视觉设计是核心目标；内容与图片保真是不可突破的底线。
+
+## 入参
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| 终稿路径 | string | 是 | Word/Markdown/TXT 终稿的本地路径 |
+| **模板路径** | string | 否 | **风格参考模板的本地路径**（HTML / 截图 / Markdown / 案例目录）。提供时按「步骤 2」从该路径学习设计语言；未提供时回退到 `references/style_matrix.md` |
+| 标题 / 摘要 / 作者 | string | 否 | 步骤 5 发布时使用 |
+| 封面图路径 | string | 步骤 5 必填 | 本地 jpg/png，建议 2.35:1 |
+
+**模板路径的使用方式（重要）**：
+
+- 模板**不内置**在本 skill 内。`assets/` 与 `references/style_matrix.md` 只是兜底知识，**不构成任何默认模板**；用户没给模板路径时，才用 `style_matrix.md` 现场推导风格。
+- 模板路径由用户在对话中给出（可为文件或目录，支持多个）。收到后，先跑 `python scripts/read_template.py <路径...>` 抽取结构化设计参数，再按 `references/style_learning_rules.md` 做原创化融合。
+- 用户给出模板路径时，**不要再拿它去覆盖 `assets/` 或新增内置模板文件**；学习结果只体现在本篇的选型与生成产物里。
 
 ## 全流程 SOP：终稿 → 草稿箱
 
@@ -14,7 +29,7 @@ description: WeChat article SOP skill — layout design AND full-pipeline SOP fo
 | 步骤 | 执行者 | 动作 | 产物 |
 |------|--------|------|------|
 | 1. 解析终稿 | `[脚本]` | `python scripts/read_draft.py <终稿路径>` | `.parsed.md` + 抽取的图片 |
-| 2. 选模板 | `[AI]` | 读 `references/style_matrix.md`，按主题选风格 | 设计分析说明 |
+| 2. 选模板 | `[AI]` | **有「模板路径」→ 跑 `read_template.py` 提炼其设计语言；无 → 读 `references/style_matrix.md` 按主题选风格** | 设计分析说明 |
 | 3. 生成 HTML | `[AI]` | 按本文档「工作流程」设计排版（样式全部内联） | 公众号 HTML 文件 |
 | 4. 预检 | `[脚本]` | 依次跑 `verify_html.py` → `verify_wechat_compat.py` → `verify_fidelity.py`；超限时跑 `minify_inline_html.py` | 通过/问题清单 |
 | 5. 发布 | `[工具]` | 调智能体 `publish_draft`（服务端会再校验一次兼容性） | 草稿箱 media_id |
@@ -35,6 +50,18 @@ python scripts/read_draft.py /path/to/终稿.docx
 ### 步骤 2~3：选模板并生成 HTML `[AI]`
 
 按本文档下方的「工作流程」与「硬规则」执行。此两步是**唯一需要审美判断**的环节，不要交给脚本。
+
+**模板路径的处理（步骤 2）**：
+
+```bash
+# 用户提供了模板路径时（文件或目录，可多个）
+python scripts/read_template.py <模板路径> [<模板路径2> ...]
+```
+
+- 脚本只做**抽取**，输出 JSON：模板类型、配色候选、标题骨架、正文参数（字号/行高/段距/宽度）、卡片与分割线特征、图片处理方法等；它不会替你决定最终风格。
+- `ok=false` 或抽不到有效特征时，把原因原样告诉用户，然后**回退**到 `references/style_matrix.md`，不要臆造模板特征填充。
+- 拿到抽取结果后，按 `references/style_learning_rules.md` 做原创化融合：保留 2–3 个抽象原则，至少改变两项（标题骨架、导航方式、卡片形态、分割线、图片框、留白节奏或强调方式），产出「气质相通但明显是新设计」的方案。
+- 用户未提供模板路径时，跳过脚本，直接读 `references/style_matrix.md` 选风格。
 
 **输出 HTML 的硬性技术约定（不遵守会导致第 5 步发布失败或草稿箱格式全丢）**：
 
@@ -104,7 +131,10 @@ publish_draft(
 
 1. **建立源内容清单**：完整读取正文、标题层级、列表、表格、引用、图片与顺序。不要凭文件名或摘要猜测内容。
 2. **分析文章**：识别主题、行业、内容类型、目标读者、传播目的、品牌调性与文章情绪。
-3. **选择视觉方案**：读取 `references/style_matrix.md`，确定配色、标题、导航、卡片、引用、图片、分割线与背景纹理的统一组合。用户提供参考案例时，再读取 `references/style_learning_rules.md`。
+3. **选择视觉方案**：
+   - **有「模板路径」入参**：跑 `python scripts/read_template.py <模板路径>` 抽取设计参数，再读 `references/style_learning_rules.md`，按其中的原创化/融合规则产出方案。
+   - **无模板路径**：读取 `references/style_matrix.md`，按主题推导方案。
+   - 两种情况都要确定配色、标题、导航、卡片、引用、图片、分割线与背景纹理的统一组合。模板路径是**用户当次提供的外部参考**，不是内置模板，不得写入 `assets/`。
 4. **保护原始内容**：生成前读取 `references/content_fidelity_rules.md`、`references/image_preservation_rules.md` 和 `references/title_navigation_rules.md`。
 5. **设计并生成 HTML**：读取 `references/design_principles.md`、`references/wechat_layout_rules.md` 与 `references/visual_elements_library.md`。从 `assets/` 选择并实际使用适合本篇的视觉片段；每篇至少使用 6 类视觉元素，但不得为了凑数量破坏阅读。
 6. **四重自检**：按 `references/quality_check.md` 检查内容、图片、视觉与微信移动端适配。任一阻断项失败，先修复再交付。
@@ -118,6 +148,7 @@ publish_draft(
 - 原图按原位置和顺序进入 HTML，不得遗漏或用无关图片替换。确实无法提取时，在原位置使用“此处插入原文第 X 张图片”占位并在交付说明中列出。
 - 禁止退化为普通标题和段落堆叠。HTML 必须有明确风格、层级、视觉节奏，并至少使用 6 类适配内容的视觉元素。
 - **样式只允许内联 `style` 属性**：不得输出 `<style>` 标签、`class` 属性、`<script>`，不得依赖伪元素/交互态/fixed 定位/CSS 变量/外链字体。这是微信平台的硬约束，不是风格偏好。
+- **不内置模板**：风格来源只有两个——用户当次提供的「模板路径」，或无模板时的 `references/style_matrix.md` 推导。`assets/` 是通用素材库，不是默认模板；模板路径的学习结果不得固化为内置文件或新增预设。
 - 不直接复制第三方模板、专有版式、Logo、插画或标志性视觉资产；只提炼设计语言并进行原创组合。
 - 不自动上传、发布、安装依赖或执行外部操作。
 
@@ -137,3 +168,5 @@ publish_draft(
 - `assets/card_patterns/`：标题、导航、引用、重点、图片、数据和 CTA 卡片片段。
 
 不要把资产占位文字直接输出；必须替换为对应原文，或在不适用时不使用该组件。
+
+`assets/` 与 `references/style_matrix.md` 均为**无模板时的兜底素材**，不是内置模板。用户提供「模板路径」时，以该模板为主进行原创化改造，两者都不会被当作可直接套用的版式。
