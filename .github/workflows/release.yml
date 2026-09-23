@@ -75,8 +75,8 @@ jobs:
           PKG="agents/wechat-publish/publisher/wechat-sop-publish-assistant.mcpb"
           echo "--- 产物清单 ---"
           unzip -l "$PKG"
-          # 必需文件必须进包
-          for f in manifest.json main.py pyproject.toml icon.svg .python-version src/publisher.py src/wechat_compat.py; do
+          # 必需文件必须进包（icon 以 manifest.json 声明的为准）
+          for f in manifest.json main.py pyproject.toml icon.png .python-version src/publisher.py src/wechat_compat.py; do
             unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
           done
           # 虚拟环境与缓存绝不能进包
