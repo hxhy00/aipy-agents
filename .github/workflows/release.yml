@@ -2,11 +2,16 @@ name: Release Extensions
 
 # 触发方式：只打 tag 才构建与发布。
 # 日常 push 代码不跑打包（ffmpeg 打包很耗时且耗 CI 额度），只做轻量校验。
+# 采用「分扩展前缀 tag」，两个扩展可独立发版：
+#   wechat-v*     → 只跑 wechat-publish job
+#   doc-video-v*  → 只跑 doc-video job
 on:
   push:
     tags:
-      - "v*"
+      - "doc-video-v*"
+      - "wechat-v*"
   # 手动兜底：需要临时出包时到 Actions 页面点按钮
+  # 注意：手动触发时 GITHUB_REF_NAME 是分支名，版本一致性校验会自动跳过（见各 job 的校验步骤）
   workflow_dispatch:
 
 # 创建 Release 需要写权限
@@ -32,6 +37,8 @@ jobs:
   wechat-publish:
     name: 打包 公众号发布套件
     runs-on: ubuntu-latest
+    # 仅 wechat-v* tag 触发本 job；手动触发时两个 job 都跑，便于临时出包
+    if: startsWith(github.ref, 'refs/tags/wechat-v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -40,9 +47,11 @@ jobs:
           node-version: "22"
 
       - name: 版本一致性校验（tag 与 manifest 必须一致）
+        # 手动触发时 GITHUB_REF_NAME 是分支名，无法比对，跳过校验
+        if: github.event_name == 'push'
         working-directory: agents/wechat-publish/publisher
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${GITHUB_REF_NAME#wechat-v}"
           MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
           PYPROJECT_VERSION="$(node -e "console.log(require('fs').readFileSync('pyproject.toml','utf8').match(/^version\s*=\s*\"([^\"]+)\"/m)[1])")"
           echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION  pyproject=$PYPROJECT_VERSION"
@@ -96,6 +105,8 @@ jobs:
   doc-video:
     name: 打包 文档一键成片
     runs-on: ubuntu-latest
+    # 仅 doc-video-v* tag 触发本 job；手动触发时两个 job 都跑，便于临时出包
+    if: startsWith(github.ref, 'refs/tags/doc-video-v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -108,9 +119,11 @@ jobs:
           bun-version: latest
 
       - name: 版本一致性校验
+        # 手动触发时 GITHUB_REF_NAME 是分支名，无法比对，跳过校验
+        if: github.event_name == 'push'
         working-directory: agents/doc-video
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${GITHUB_REF_NAME#doc-video-v}"
           MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
           echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION"
           if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
@@ -166,13 +179,16 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------
-  # 汇总发布：把两个产物挂到同一个 GitHub Release
+  # 汇总发布：把本次实际构建的产物挂到同一个 GitHub Release
+  # 每次 tag 只会有一个扩展 job 真正执行，另一个被 skip，
+  # 因此这里用 always() + 结果判断，保证「至少一个成功即可发布」。
   # ---------------------------------------------------------------
   publish:
     name: 发布 Release
     needs: [wechat-publish, doc-video]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # 至少一个前置 job 成功，且没有任何失败/取消，才发布
+    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && contains(needs.*.result, 'success')
     steps:
       - uses: actions/download-artifact@v4
         with:

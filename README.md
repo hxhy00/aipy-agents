@@ -88,25 +88,37 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 
 ### 发版步骤
 
-```bash
-# 1. 改版本号（两处必须一致，CI 会校验）
-#    agents/wechat-publish/publisher/manifest.json  的 version
-#    agents/doc-video/manifest.json                 的 version
+两个扩展通过**分扩展前缀 tag** 独立发版，互不影响：
 
-# 2. 打 tag 并推送（tag 去掉 v 前缀后必须等于 manifest 里的 version）
-git tag v1.1.0
-git push origin v1.1.0
+| 扩展 | tag 形式 | 触发 job |
+|------|----------|----------|
+| 公众号发布套件 | `wechat-v1.0.0` | `wechat-publish` |
+| 文档一键成片 | `doc-video-v1.0.0` | `doc-video` |
+
+```bash
+# 1. 改版本号（tag 去掉对应前缀后必须等于 manifest 里的 version，CI 会校验）
+#    公众号发布套件：agents/wechat-publish/publisher/manifest.json 的 version
+#                    （同时需与同目录 pyproject.toml 的 version 一致）
+#    文档一键成片：  agents/doc-video/manifest.json 的 version
+
+# 2. 打 tag 并推送（只发哪个扩展就打哪个前缀的 tag）
+git tag wechat-v1.0.0
+git push origin wechat-v1.0.0
+
+# 或发文档一键成片
+git tag doc-video-v1.0.0
+git push origin doc-video-v1.0.0
 ```
 
-推送 tag 后 CI 自动完成：
+推送 tag 后 CI 自动完成（只有对应的扩展 job 会执行，另一个被跳过）：
 
-1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败）
+1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败；`wechat-publish` 还会校验 `pyproject.toml`）
 2. `doc-video`：安装依赖 → `bun run build` → 打包
 3. `wechat-publish`：打包智能体 + 压缩 skill 包
 4. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码 / ffmpeg 是否误入包、体积是否异常）
-5. 创建 GitHub Release 并上传三个产物
+5. 创建 GitHub Release 并上传本次构建的产物（`publish` job 只要至少一个扩展 job 成功即发布）
 
-也可以到 Actions 页面手动触发 `workflow_dispatch`。
+也可以到 Actions 页面手动触发 `workflow_dispatch`（此时两个扩展 job 都会执行，版本一致性校验自动跳过）。
 
 ### 为什么日常 push 不打包
 
