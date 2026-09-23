@@ -11,7 +11,8 @@
     "build": "bun build --outfile=server.js --production --target=node ./server/index.js",
     "prepack": "bun run build",
     "pack": "bun x @anthropic-ai/mcpb@2.1.2 pack . doc-video.mcpb",
-    "fetch-ffmpeg": "bash ../../scripts/fetch-ffmpeg.sh"
+    "fetch-ffmpeg": "bash ../../scripts/fetch-ffmpeg.sh",
+    "fetch-ffmpeg:all": "bash ../../scripts/fetch-ffmpeg.sh all"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.24.2",

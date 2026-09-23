@@ -17,7 +17,8 @@ README.md
 /scripts/
 # 旧图标：manifest 引用的是 icon.png（打包器强制要求 PNG 格式）
 icon.svg
-# 注意：/vendor/ 必须随包分发（内置 ffmpeg / ffprobe），不要加入忽略列表
-# 内置二进制为三平台全量：darwin-arm64 / darwin-x64 / win32-x64
-# Windows 侧为 .gz 压缩存放，首次调用时由 server/lib/binaries.js 惰性解压到 ~/.aipy/bin
-# 获取方式见 vendor/README.md 与根目录 scripts/fetch-ffmpeg.sh
+# ffmpeg 二进制不随发布包分发（三平台全量约 126MB，打包后超过 GitHub Release 100MB 硬限制）。
+# 改由用户自行安装：macOS `brew install ffmpeg`，Windows `winget install Gyan.FFmpeg`。
+# 插件侧 server/lib/binaries.js 会自动在 PATH 与常见安装路径中查找，无需改配置。
+# 说明见 vendor/README.md。
+/vendor/

@@ -38,7 +38,7 @@ export async function handler({ spec, shots = [], docTitle = "", voice = "", ski
 	const ffmpeg = await detectFfmpeg()
 	if (!ffmpeg.available) {
 		return {
-			content: [{ type: "text", text: `无法提交渲染：${ffmpeg.reason}\n\n渲染依赖 ffmpeg 做视频编码与拼接。插件本应内置 ffmpeg，出现此提示说明安装不完整（或平台不匹配）：请重新安装插件；也可在插件设置中用环境变量 FFMPEG_PATH 指定已有 ffmpeg 的绝对路径。` }],
+			content: [{ type: "text", text: `无法提交渲染：${ffmpeg.reason}\n\n渲染依赖 ffmpeg 做视频编码与拼接。本插件不内置 ffmpeg，请先安装：macOS 执行 brew install ffmpeg，Windows 执行 winget install Gyan.FFmpeg；已安装但仍报未找到时，可在插件设置中用环境变量 FFMPEG_PATH 指定其绝对路径。` }],
 			isError: true
 		}
 	}

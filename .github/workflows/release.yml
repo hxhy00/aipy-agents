@@ -86,7 +86,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------
-  # 文档一键成片（Node.js 工具型智能体，随包分发三平台 ffmpeg）
+  # 文档一键成片（Node.js 工具型智能体；ffmpeg 由用户自行安装，不打进包）
   # ---------------------------------------------------------------
   doc-video:
     name: 打包 文档一键成片
@@ -117,44 +117,42 @@ jobs:
         working-directory: agents/doc-video
         run: bun install --frozen-lockfile
 
-      - name: 获取三平台 ffmpeg 二进制
-        run: ./scripts/fetch-ffmpeg.sh all
-
       - name: 构建 server.js
         working-directory: agents/doc-video
         run: bun run build
-
-      # 关键：mcpb 打包器不写 Windows 的 Unix 权限位（上游 issue #235），
-      # 但 Linux/macOS 上会正确写入。因此必须在 ubuntu-latest 上打包，
-      # 且打包前显式补一次可执行位，保证用户解包后 ffmpeg 能直接调用。
-      - name: 补回可执行位
-        run: chmod +x agents/doc-video/vendor/*/ffmpeg agents/doc-video/vendor/*/ffprobe
 
       - name: 打包扩展
         run: |
           cd agents/doc-video
           npx -y ${MCPB_CLI} pack . doc-video.mcpb
 
-      - name: 校验产物内容与权限位
+      - name: 校验产物内容与体积
         run: |
           set -euo pipefail
           PKG="agents/doc-video/doc-video.mcpb"
           echo "--- 产物清单 ---"
           unzip -l "$PKG"
           # 必需运行时文件
-          for f in manifest.json server.js icon.svg; do
+          for f in manifest.json server.js icon.png; do
             unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
-          done
-          # 内置 ffmpeg 必须随包分发
-          for f in vendor/darwin-arm64/ffmpeg vendor/darwin-x64/ffmpeg vendor/win32-x64/ffmpeg.exe.gz; do
-            unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少内置二进制 $f"; exit 1; }
           done
           # 源码与依赖不能进包
           if unzip -l "$PKG" | grep -qE " server/| node_modules/| package\.json\$"; then
             echo "::error::产物夹带了源码或依赖"; exit 1
           fi
-          echo "--- 权限位检查（可执行位必须保留，否则用户侧 EACCES）---"
-          unzip -Z "$PKG" | grep -E "vendor/.*/ffmpeg|vendor/.*/ffprobe" | head -8
+          # ffmpeg 不随包分发（用户自行安装）：夹带会让产物超过 Release 单文件上限
+          if unzip -l "$PKG" | grep -qE " vendor/.*(ffmpeg|ffprobe)"; then
+            echo "::error::产物夹带了 ffmpeg 二进制，会让包体积失控，请检查 .mcpbignore 的 /vendor/ 规则"; exit 1
+          fi
+          # 体积闸门：正常应在 2MB 上下，明显偏大说明打包规则失效
+          SIZE=$(stat -c%s "$PKG")
+          MB=$((SIZE / 1024 / 1024))
+          echo "产物体积：${MB} MB"
+          if [ "$SIZE" -ge 20000000 ]; then
+            echo "::error::产物 ${MB}MB 异常偏大（预期 2MB 级），请检查 .mcpbignore 是否被改坏"
+            exit 1
+          fi
+          echo "OK: 产物校验通过"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -196,6 +194,8 @@ jobs:
             |------|------|------|
             | `wechat-sop-publish-assistant.mcpb` | 智能体 | 公众号发布助手（解析终稿、写草稿箱、文字与兼容性校验） |
             | `wechat-article-sop-layout.zip` | skill 包 | 公众号排版 SOP（排版规范、风格矩阵、预检脚本） |
-            | `doc-video.mcpb` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频，内置 ffmpeg） |
+            | `doc-video.mcpb` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频） |
 
-            > `doc-video.mcpb` 体积较大（约 140 MB），因为内置了三平台 ffmpeg 二进制，用户无需自行安装 ffmpeg。
+            > `doc-video.mcpb` 已不内置 ffmpeg（三平台全量约 126 MB，会超过 GitHub Release 单文件 100 MB 限制）。
+            > 使用前请先安装：macOS 执行 `brew install ffmpeg`，Windows 执行 `winget install Gyan.FFmpeg`。
+            > 插件会自动在 PATH 与常见安装路径中查找；如仍检测不到，可在插件设置中用环境变量 `FFMPEG_PATH` 指定绝对路径。

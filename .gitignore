@@ -57,7 +57,8 @@ dist/
 .eggs/
 
 # ---------- ffmpeg 二进制（由 scripts/fetch-ffmpeg.sh 获取） ----------
-# 三平台全量约 294MB，且 darwin-x64 单文件已逼近 GitHub 的 100MB 限制。
+# 发布包不内置 ffmpeg，此处仅防止本地调试拉取的二进制被误提交。
+# 三平台全量约 126MB，且 darwin-x64 单文件已逼近 GitHub 的 100MB 限制。
 # 保留目录结构（.gitkeep），只忽略二进制本身。
 agents/doc-video/vendor/*/ffmpeg
 agents/doc-video/vendor/*/ffprobe

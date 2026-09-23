@@ -126,6 +126,19 @@ jobs:
             echo "OK: 未发现遗留的 .dxtignore"
           fi
 
+      - name: 确认 ffmpeg 未随包分发
+        run: |
+          set -euo pipefail
+          IGNORE="agents/doc-video/.mcpbignore"
+          # 三平台 ffmpeg 约 126MB，打包后会超过 GitHub Release 单文件 100MB 上限，
+          # 因此发布包必须排除 /vendor/。误删这行会在 release.yml 的体积闸门才暴露，
+          # 这里提前拦截。
+          if ! grep -qE '^\s*/vendor/\s*$' "$IGNORE"; then
+            echo "::error::$IGNORE 缺少 /vendor/ 忽略规则，ffmpeg 会被打进包导致产物超限"
+            exit 1
+          fi
+          echo "OK: .mcpbignore 已排除 /vendor/"
+
       - name: 检查图标格式（打包器强制要求 PNG）
         run: |
           set -euo pipefail

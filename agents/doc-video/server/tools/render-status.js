@@ -35,8 +35,13 @@ export async function handler({ taskId = "", includeLogs = false }) {
 			lines.push(
 				"**警告**：未找到 ffmpeg，无法渲染成片。",
 				"",
-				"插件通常已内置 ffmpeg；若出现此提示，说明内置二进制缺失或与当前平台不匹配。",
-				"解决办法：① 重新安装插件以恢复内置二进制；② 在插件设置中通过环境变量 `FFMPEG_PATH` 指定 ffmpeg 绝对路径。",
+				"本插件不内置 ffmpeg，请先安装（任选其一）：",
+				"",
+				"- macOS：`brew install ffmpeg`",
+				"- Windows：`winget install Gyan.FFmpeg`",
+				"- 其他渠道安装后若仍检测不到，可在插件设置中用环境变量 `FFMPEG_PATH` 指定绝对路径（例如 `/opt/homebrew/bin/ffmpeg`）。",
+				"",
+				"安装后无需重启插件，重新调用本工具即可生效。",
 				""
 			)
 		}
@@ -127,7 +132,7 @@ function statusLabel(status) {
 }
 
 function sourceLabel(source) {
-	return { env: "环境变量指定", builtin: "插件内置", path: "系统 PATH", system: "常见安装路径", missing: "未找到" }[source] || source
+	return { env: "环境变量指定", builtin: "随包内置", path: "系统 PATH", system: "常见安装路径", missing: "未找到" }[source] || source
 }
 
 function stageLabel(stage) {

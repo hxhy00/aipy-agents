@@ -24,22 +24,33 @@
 | `submit_render` | 提交渲染任务，立即返回任务 ID |
 | `render_status` | 查询任务进度，完成后返回视频路径 |
 
+## 运行前置：ffmpeg
+
+**本插件不内置 ffmpeg**，需用户自行安装：
+
+- macOS：`brew install ffmpeg`
+- Windows：`winget install Gyan.FFmpeg`
+
+插件会在系统 PATH 与常见安装路径（`/opt/homebrew/bin`、`C:\Program Files\ffmpeg\bin`、
+winget / scoop / chocolatey 落地位置等）中自动查找；已安装但仍提示未找到时，
+可用环境变量 `FFMPEG_PATH` 指定绝对路径。解析逻辑见 `server/lib/binaries.js`。
+
+不内置的原因见 [vendor/README.md](vendor/README.md)：三平台全量约 126 MB，
+打包后超过 GitHub Release 单文件 100 MB 硬限制。
+
 ## 本地开发
 
 ```bash
 bun install
-
-# 只获取当前平台的 ffmpeg（约 90 MB）
-bash ../../scripts/fetch-ffmpeg.sh
-
 bun run build     # 生成 server.js
 bun run dev       # 启动服务，输出 {"type":"http_start","port":N}
 ```
 
-发版打包前需要三平台全量二进制（约 294 MB）：
+如果你本机没有装 ffmpeg，也可以拉到 `vendor/` 里做内置链路调试：
 
 ```bash
-bash ../../scripts/fetch-ffmpeg.sh all
+bash ../../scripts/fetch-ffmpeg.sh          # 自动识别当前平台
+bash ../../scripts/fetch-ffmpeg.sh all      # 三平台全量（约 126 MB）
 ```
 
 ## 打包
@@ -48,17 +59,8 @@ bash ../../scripts/fetch-ffmpeg.sh all
 bun run pack      # 等价于 npx @anthropic-ai/mcpb@2.1.2 pack . doc-video.mcpb
 ```
 
-产物约 140 MB，因为内置了三平台 ffmpeg，用户无需自行安装。
-
-## 为什么 ffmpeg 二进制不入库
-
-三平台全量约 294 MB，其中 `darwin-x64/ffmpeg` 单文件已逼近 GitHub 的 100 MB 硬限制。因此：
-
-- **版本库只存代码**，`vendor/` 下仅保留目录结构与说明文件
-- **本地与 CI 都通过 `scripts/fetch-ffmpeg.sh` 获取二进制**
-- CI 在打 tag 时下载全量二进制再打包
-
-`vendor/` **必须随包分发**，不要加进 `.mcpbignore`。
+产物约 2 MB（`.mcpbignore` 已排除 `vendor/`）。若在本地临时移除 `/vendor/` 那行，
+打包会带上二进制，仅建议用于离线验证，不要用于发布。
 
 ## 目录说明
 
@@ -67,12 +69,12 @@ agents/doc-video/
 ├── server/
 │   ├── index.js              # MCP 服务入口，注册 5 个工具
 │   ├── lib/
-│   │   ├── binaries.js       # ffmpeg 路径解析（三平台）+ Windows 侧惰性解压
+│   │   ├── binaries.js       # ffmpeg 路径解析（环境变量 → PATH → 常见安装路径）
 │   │   ├── render-server.js  # 独立渲染服务端（异步执行）
 │   │   └── renderer.js       # 渲染实现
 │   └── tools/                # 各工具的业务逻辑
 ├── prompts/                  # 注入 AiPy 的系统提示词与补充指令
-├── vendor/                   # ffmpeg 二进制归位目录（见 vendor/README.md）
+├── vendor/                   # 可选的本地内置 ffmpeg 目录（不随包分发，见 vendor/README.md）
 ├── manifest.json             # 扩展元信息与 user_config 定义
 ├── package.json
 ├── .mcpbignore               # 打包排除规则
@@ -85,7 +87,8 @@ agents/doc-video/
 
 - TTS 优先使用 Azure Speech，未配置时降级到 Edge TTS（音色选择范围更小）
 - 渲染耗时与文案长度正相关，长文档请留意 `render_status` 的进度
-- Windows 侧 ffmpeg 以 `.gz` 存放，首次调用时解压到 `~/.aipy/bin`，多等几秒属正常
+- 渲染依赖系统 ffmpeg：未安装时 `submit_render` 会直接给出安装指引，不会静默失败
+- Windows 侧解压 `~/.aipy/bin` 的缓存逻辑仍保留，供本地内置调试使用
 
 ## 参考
 

@@ -7,9 +7,14 @@
  *
  * 解析优先级：
  *   1. 环境变量覆盖（FFMPEG_PATH / FFPROBE_PATH）—— 便于用户自定义与排查
- *   2. 随插件分发的内置二进制 vendor/<platform>-<arch>/ —— 免安装、免联网、免权限
+ *   2. 随插件分发的内置二进制 vendor/<platform>-<arch>/ —— 若发布包内置则免安装（当前发布版不内置，见下）
  *   3. 系统 PATH
  *   4. 常见绝对路径（Homebrew / MacPorts / /usr/local / Windows 常见安装位置）
+ *
+ * 关于「不内置 ffmpeg」的决策（2026-09）：
+ *   三平台全量 ffmpeg 约 126MB，打进单个 .mcpb 后会超过 GitHub Release 单文件 100MB 硬限制，
+ *   也无法正常入库分发。因此发布包不再内置，改由用户自行安装（brew / winget），
+ *   第 2 步的查找逻辑保留：本地开发时把二进制放进 vendor/ 仍可自动命中，无需改代码。
  *
  * 结果按命令名缓存，避免重复探测；探测失败不缓存，便于用户装完 ffmpeg 后无需重启即可生效。
  */

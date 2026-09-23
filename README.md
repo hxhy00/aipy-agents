@@ -19,7 +19,7 @@
 │   └── doc-video/                # 文档一键成片（Node.js）
 │       ├── server/               #   服务端源码
 │       ├── prompts/              #   注入 AiPy 的系统提示词
-│       └── vendor/               #   ffmpeg 二进制目录（二进制不入库）
+│       └── vendor/               #   ffmpeg 目录（发布包不携带，仅供本地调试）
 ├── scripts/
 │   └── fetch-ffmpeg.sh           # 三平台 ffmpeg 获取脚本（本地与 CI 复用）
 └── reference/                    # 参考资料，不参与构建
@@ -36,9 +36,11 @@
 |------|------|--------|------|------|
 | `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP | `wechat-sop-publish-assistant.mcpb` | 约 60 KB |
 | `agents/wechat-publish` | skill 包 | Markdown + Python 脚本 | `wechat-article-sop-layout.zip` | 约 200 KB |
-| `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.mcpb` | 约 140 MB |
+| `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.mcpb` | 约 2 MB |
 
-`doc-video` 体积大是因为内置了三平台 ffmpeg 二进制，用户无需自行安装 ffmpeg。
+> `doc-video` 不再内置 ffmpeg。三平台全量约 126 MB，打包后超过 GitHub Release 单文件 100 MB 硬限制，
+> 改为要求用户自行安装（macOS：`brew install ffmpeg`；Windows：`winget install Gyan.FFmpeg`）。
+> 插件侧 `server/lib/binaries.js` 会自动在 PATH 与常见安装路径中查找，详见 [agents/doc-video/vendor/README.md](agents/doc-video/vendor/README.md)。
 
 ## 本地开发
 
@@ -56,15 +58,18 @@ uv run main.py
 ```bash
 cd agents/doc-video
 bun install
-bash ../../scripts/fetch-ffmpeg.sh        # 只取当前平台，约 90 MB
 bun run build                             # 生成 server.js
 bun run dev
+
+# 运行前置：本机需已安装 ffmpeg（brew install ffmpeg / winget install Gyan.FFmpeg）
 ```
 
-需要三平台全量二进制（约 294 MB，发版打包前用）：
+如果本机没有 ffmpeg、想验证「内置二进制」这条链路，可以把它拉到 `vendor/` 供本地调试
+（发布包不会携带，`.mcpbignore` 已排除 `/vendor/`）：
 
 ```bash
-bash scripts/fetch-ffmpeg.sh all
+bash scripts/fetch-ffmpeg.sh              # 自动识别当前平台
+bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 ```
 
 ## 发布流程
@@ -96,16 +101,16 @@ git push origin v1.1.0
 推送 tag 后 CI 自动完成：
 
 1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败）
-2. `doc-video`：安装依赖 → 获取三平台 ffmpeg → `bun run build` → 补可执行位 → 打包
+2. `doc-video`：安装依赖 → `bun run build` → 打包
 3. `wechat-publish`：打包智能体 + 压缩 skill 包
-4. 校验产物内容（必需文件是否齐全、虚拟环境与源码是否误入包）
+4. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码 / ffmpeg 是否误入包、体积是否异常）
 5. 创建 GitHub Release 并上传三个产物
 
 也可以到 Actions 页面手动触发 `workflow_dispatch`。
 
 ### 为什么日常 push 不打包
 
-`doc-video` 打包需要下载约 294 MB 的 ffmpeg 且 Bun 打包耗时较长，每次 push 都跑会浪费 CI 额度。因此拆成两个 workflow：日常只跑秒级的轻量校验，打 tag 才做重活。
+`doc-video` 打包要跑 Bun 构建并产出可交付产物，属于「重活」，而日常改动大多只是改一行文案或路径。因此拆成两个 workflow：日常只跑秒级的轻量校验（语法、凭据、结构约定），打 tag 才构建与发布。
 
 ## 关键技术约定
 
@@ -132,9 +137,17 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 所有第三方凭据（微信公众号 AppSecret、Azure Speech Key、搜索 API Key）一律通过 AiPy 的 `user_config` 注入，代码中用 `os.environ.get()` / `process.env` 读取，**禁止硬编码静默回退**。`check.yml` 会扫描源码拦截硬编码凭据。
 
-### 内置二进制与可执行位
+### 为什么不分发内置 ffmpeg
 
-`mcpb` 打包器在 Linux/macOS 上会正确写入 Unix 权限位，但在 Windows 上不写（上游已知问题）。因此 CI 固定在 `ubuntu-latest` 上打包，并在打包前显式 `chmod +x`，否则用户侧调用 ffmpeg 会报 `EACCES`。
+| 方案 | 问题 |
+|------|------|
+| 单包塞三平台 ffmpeg | 产物约 140 MB，超过 GitHub Release 单文件 100 MB 硬限制，push 直接被拒 |
+| 三平台各自出包 | 用户容易下错包，且维护三份 Release 附件与校验逻辑 |
+| 二进制入库 | 三平台原始二进制约 294 MB，`darwin-x64/ffprobe` 单文件约 79 MB，克隆成本不可接受 |
+
+最终采用**用户自行安装 + 插件自动查找**（Homebrew / winget 均为成熟方案），
+解析顺序为「环境变量 `FFMPEG_PATH` → PATH → 常见安装路径」，代码见 `server/lib/binaries.js`。
+`vendor/` 目录与查找逻辑保留，仅用于本地内置链路调试。
 
 ### 微信渲染兼容性
 

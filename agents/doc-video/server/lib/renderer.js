@@ -29,11 +29,12 @@ export async function detectFfmpeg() {
 			ffprobe: false,
 			resolved: info,
 			reason: [
-				"未检测到 ffmpeg。",
-				"通常插件已内置 ffmpeg，出现此提示说明内置二进制缺失或与当前平台不匹配",
-				`（当前平台：${info.platform}）。`,
-				"你可以：① 重新安装插件以恢复内置二进制；② 在插件设置中手动指定 ffmpeg 路径（环境变量 FFMPEG_PATH）；",
-				"③ 自行安装：macOS 执行 brew install ffmpeg，Windows 执行 winget install Gyan.FFmpeg。"
+				"未检测到 ffmpeg，无法渲染成片。",
+				`（当前平台：${info.platform}）请任选一种方式安装：`,
+				"① macOS：终端执行 brew install ffmpeg；",
+				"② Windows：终端执行 winget install Gyan.FFmpeg（或 scoop install ffmpeg）；",
+				"③ 其他方式安装后若仍检测不到，可在插件设置里用环境变量 FFMPEG_PATH 直接指定 ffmpeg 绝对路径。",
+				"安装完成后无需重启插件，重新调用一次即可生效。"
 			].join("")
 		}
 	}
@@ -648,7 +649,7 @@ function run(cmd, args, timeoutMs = 180000) {
 	return new Promise((resolve, reject) => {
 		const resolved = path.isAbsolute(cmd) ? cmd : resolveBinary(cmd)
 		if (!resolved) {
-			return reject(new Error(`未找到可执行文件「${cmd}」。插件应已内置 ffmpeg，请重新安装插件或在插件设置中指定路径。`))
+			return reject(new Error(`未找到可执行文件「${cmd}」。请先安装 ffmpeg（macOS：brew install ffmpeg；Windows：winget install Gyan.FFmpeg），或用环境变量 FFMPEG_PATH 指定其绝对路径。`))
 		}
 		runBinary(resolved, args, { timeoutMs })
 			.then(result => {

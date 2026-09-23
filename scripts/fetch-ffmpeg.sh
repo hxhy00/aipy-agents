@@ -3,13 +3,14 @@
 # 获取 ffmpeg / ffprobe 二进制并按平台归位到 agents/doc-video/vendor/。
 #
 # 为什么需要这个脚本：
-#   随扩展包分发的 ffmpeg 三平台全量约 294MB，其中 darwin-x64 单文件已逼近
-#   GitHub 的 100MB 硬限制，因此二进制不入版本库，改为本地/CI 按需获取。
+#   发布包不内置 ffmpeg（三平台全量约 126MB，打包后会超过 GitHub Release
+#   单文件 100MB 硬限制），用户改为自行安装；本脚本供本地开发时拉取二进制，
+#   用于验证「内置二进制」这条解析链路，也可在将来改回内置分发时直接复用。
 #
 # 用法：
 #   ./scripts/fetch-ffmpeg.sh                    # 自动识别当前平台
 #   ./scripts/fetch-ffmpeg.sh darwin-arm64       # 指定单一平台
-#   ./scripts/fetch-ffmpeg.sh all                # 三平台全量（发版打包用，约 294MB）
+#   ./scripts/fetch-ffmpeg.sh all                # 三平台全量（约 126MB）
 #
 # 输出目录：agents/doc-video/vendor/<platform>/
 #   darwin-arm64/  ffmpeg, ffprobe          （原始二进制，含可执行位）
@@ -109,8 +110,10 @@ case "${1:-auto}" in
 	all)  TARGETS=(darwin-arm64 darwin-x64 win32-x64) ;;
 	darwin-arm64|darwin-x64|win32-x64) TARGETS=("$1") ;;
 	linux-x64|linux-arm64)
-		warn "仓库当前只分发 macOS 与 Windows 二进制（与 .mcpb 包内的三个 vendor 子目录对应）。"
-		die  "如需 Linux 支持，请先更新 server/lib/binaries.js 与 .mcpbignore 的说明。"
+		# 发布包不内置 ffmpeg，Linux 用户直接用包管理器安装即可，无需本脚本
+		warn "脚本目前只获取 macOS 与 Windows 二进制（与 vendor/ 下的三个平台子目录对应）。"
+		warn "Linux 用户请直接用系统包管理器安装 ffmpeg（apt/dnf/pacman），插件会自动在 PATH 中找到。"
+		exit 0
 		;;
 	*) die "未知参数：$1（可用：auto | all | darwin-arm64 | darwin-x64 | win32-x64）" ;;
 esac

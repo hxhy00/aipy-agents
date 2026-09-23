@@ -32,7 +32,7 @@ function wrap(name, fn) {
 			const message = `[${name}] 执行失败：${error?.message || error}`
 			console.error(message, error?.stack || "")
 			return {
-				content: [{ type: "text", text: `${message}\n\n排查建议：确认文档路径可读；调用 get_render_status（不传 taskId）可查看 ffmpeg 解析情况与运行平台。插件已内置 ffmpeg，若仍提示缺失，多为安装不完整或平台不匹配，重新安装插件即可。` }],
+				content: [{ type: "text", text: `${message}\n\n排查建议：确认文档路径可读；调用 get_render_status（不传 taskId）可查看 ffmpeg 解析情况与运行平台。渲染依赖系统已安装的 ffmpeg（本插件不内置），若提示未找到，请执行 brew install ffmpeg（macOS）或 winget install Gyan.FFmpeg（Windows），也可用环境变量 FFMPEG_PATH 指定路径。` }],
 				isError: true
 			}
 		}
