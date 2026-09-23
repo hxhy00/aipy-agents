@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#1890ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 外框 - 表示浏览器窗口 -->
+  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+  <!-- 顶部导航条 -->
+  <line x1="8" y1="6" x2="8" y2="6.01"/>
+  <line x1="12" y1="6" x2="12" y2="6.01"/>
+  <line x1="16" y1="6" x2="16" y2="6.01"/>
+  <!-- 内容区域 -->
+  <rect x="4" y="9" width="16" height="6" rx="1" ry="1" fill="#e6f7ff" stroke="#91d5ff"/>
+  <!-- 嵌入标识 -->
+  <path d="M9 12h6M12 9v6" stroke="#1890ff" stroke-width="1.5"/>
+</svg>

@@ -1,0 +1,7 @@
+/bun.lock
+/src
+/node_modules
+/build.js
+/eslint.config.js
+/*.dxt
+README.md

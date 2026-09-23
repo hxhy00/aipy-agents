@@ -1,0 +1,201 @@
+name: Release Extensions
+
+# 触发方式：只打 tag 才构建与发布。
+# 日常 push 代码不跑打包（ffmpeg 打包很耗时且耗 CI 额度），只做轻量校验。
+on:
+  push:
+    tags:
+      - "v*"
+  # 手动兜底：需要临时出包时到 Actions 页面点按钮
+  workflow_dispatch:
+
+# 创建 Release 需要写权限
+permissions:
+  contents: write
+
+# 同一 tag 只允许一个构建在跑
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 锁定打包器版本，避免上游升级导致产物结构突变。
+  # 说明：@anthropic-ai/dxt 已被官方废弃并改名为 @anthropic-ai/mcpb，
+  #      新版命令为 `mcpb pack`，产物扩展名为 .mcpb。
+  MCPB_CLI: "@anthropic-ai/mcpb@2.1.2"
+
+jobs:
+  # ---------------------------------------------------------------
+  # 公众号发布套件（Python 工具型智能体 + 排版 skill 包）
+  # 无需构建步骤：Python 项目由宿主 uv 解析依赖，打包是纯 zip
+  # ---------------------------------------------------------------
+  wechat-publish:
+    name: 打包 公众号发布套件
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 版本一致性校验（tag 与 manifest 必须一致）
+        working-directory: agents/wechat-publish/publisher
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+          echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::tag 版本($TAG_VERSION) 与 manifest.json 版本($MANIFEST_VERSION) 不一致"
+            exit 1
+          fi
+
+      - name: 打包智能体
+        run: |
+          cd agents/wechat-publish/publisher
+          npx -y ${MCPB_CLI} pack . wechat-sop-publish-assistant.mcpb
+
+      - name: 校验产物内容
+        run: |
+          set -euo pipefail
+          PKG="agents/wechat-publish/publisher/wechat-sop-publish-assistant.mcpb"
+          echo "--- 产物清单 ---"
+          unzip -l "$PKG"
+          # 必需文件必须进包
+          for f in manifest.json main.py pyproject.toml icon.svg .python-version src/publisher.py src/wechat_compat.py; do
+            unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
+          done
+          # 虚拟环境与缓存绝不能进包
+          if unzip -l "$PKG" | grep -qE "\.venv/|__pycache__/|\.pyc\$|uv\.lock"; then
+            echo "::error::产物夹带了虚拟环境或缓存文件"; exit 1
+          fi
+          echo "OK: 产物校验通过"
+
+      - name: 打包排版 skill 包
+        run: |
+          cd agents/wechat-publish/skills
+          zip -r -q wechat-article-sop-layout.zip wechat-article-sop-layout
+          unzip -l wechat-article-sop-layout.zip | tail -3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wechat-publish
+          path: |
+            agents/wechat-publish/publisher/wechat-sop-publish-assistant.mcpb
+            agents/wechat-publish/skills/wechat-article-sop-layout.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------
+  # 文档一键成片（Node.js 工具型智能体，随包分发三平台 ffmpeg）
+  # ---------------------------------------------------------------
+  doc-video:
+    name: 打包 文档一键成片
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 版本一致性校验
+        working-directory: agents/doc-video
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+          echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::tag 版本($TAG_VERSION) 与 manifest.json 版本($MANIFEST_VERSION) 不一致"
+            exit 1
+          fi
+
+      - name: 安装依赖
+        working-directory: agents/doc-video
+        run: bun install --frozen-lockfile
+
+      - name: 获取三平台 ffmpeg 二进制
+        run: ./scripts/fetch-ffmpeg.sh all
+
+      - name: 构建 server.js
+        working-directory: agents/doc-video
+        run: bun run build
+
+      # 关键：mcpb 打包器不写 Windows 的 Unix 权限位（上游 issue #235），
+      # 但 Linux/macOS 上会正确写入。因此必须在 ubuntu-latest 上打包，
+      # 且打包前显式补一次可执行位，保证用户解包后 ffmpeg 能直接调用。
+      - name: 补回可执行位
+        run: chmod +x agents/doc-video/vendor/*/ffmpeg agents/doc-video/vendor/*/ffprobe
+
+      - name: 打包扩展
+        run: |
+          cd agents/doc-video
+          npx -y ${MCPB_CLI} pack . doc-video.mcpb
+
+      - name: 校验产物内容与权限位
+        run: |
+          set -euo pipefail
+          PKG="agents/doc-video/doc-video.mcpb"
+          echo "--- 产物清单 ---"
+          unzip -l "$PKG"
+          # 必需运行时文件
+          for f in manifest.json server.js icon.svg; do
+            unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
+          done
+          # 内置 ffmpeg 必须随包分发
+          for f in vendor/darwin-arm64/ffmpeg vendor/darwin-x64/ffmpeg vendor/win32-x64/ffmpeg.exe.gz; do
+            unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少内置二进制 $f"; exit 1; }
+          done
+          # 源码与依赖不能进包
+          if unzip -l "$PKG" | grep -qE " server/| node_modules/| package\.json\$"; then
+            echo "::error::产物夹带了源码或依赖"; exit 1
+          fi
+          echo "--- 权限位检查（可执行位必须保留，否则用户侧 EACCES）---"
+          unzip -Z "$PKG" | grep -E "vendor/.*/ffmpeg|vendor/.*/ffprobe" | head -8
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doc-video
+          path: agents/doc-video/doc-video.mcpb
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------
+  # 汇总发布：把两个产物挂到同一个 GitHub Release
+  # ---------------------------------------------------------------
+  publish:
+    name: 发布 Release
+    needs: [wechat-publish, doc-video]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: 整理产物清单
+        run: find dist -type f | sort
+
+      - name: 创建 Release 并上传产物
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/wechat-publish/wechat-sop-publish-assistant.mcpb
+            dist/wechat-publish/wechat-article-sop-layout.zip
+            dist/doc-video/doc-video.mcpb
+          body: |
+            ## 安装方式
+
+            到 AiPy 客户端「集市 → 本地安装」选择对应的扩展包：
+
+            | 产物 | 类型 | 说明 |
+            |------|------|------|
+            | `wechat-sop-publish-assistant.mcpb` | 智能体 | 公众号发布助手（解析终稿、写草稿箱、文字与兼容性校验） |
+            | `wechat-article-sop-layout.zip` | skill 包 | 公众号排版 SOP（排版规范、风格矩阵、预检脚本） |
+            | `doc-video.mcpb` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频，内置 ffmpeg） |
+
+            > `doc-video.mcpb` 体积较大（约 140 MB），因为内置了三平台 ffmpeg 二进制，用户无需自行安装 ffmpeg。

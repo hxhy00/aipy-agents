@@ -1,0 +1,13 @@
+{
+  "name": "@aipy-cybersecurity/security-docker",
+  "display_name": "Docker配置安全检查",
+  "version": "1.0.0",
+  "description": "识别 Dockerfile、docker-compose.yml 配置中的安全风险",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "keywords": [
+    "skills",
+    "数据安全"
+  ]
+}

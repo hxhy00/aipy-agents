@@ -1,0 +1,26 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-enterprise/embed-webview",
+  "display_name": "内嵌 webview 页面示例",
+  "version": "1.0.0",
+  "description": "embed-webview 类型智能体示例，在 AiPy 集市页内以内嵌 webview 页面展示",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.svg",
+  "server": {
+    "type": "node",
+    "entry_point": "server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server.js"
+      ],
+      "env": {}
+    }
+  },
+  "keywords": [
+    "embed-webview",
+    "其他"
+  ]
+}

@@ -1,0 +1,5 @@
+/server/
+/node_modules/
+eslint.config.js
+/package.json
+bun.lock

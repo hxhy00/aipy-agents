@@ -1,0 +1,10 @@
+{
+  "name": "@aipy-cybersecurity/skills",
+  "display_name": "查找技能",
+  "version": "0.0.1",
+  "description": "查找技能扩展，支持根据关键词查找和推荐相关技能。",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "keywords": ["skills", "AI 安全"]
+}

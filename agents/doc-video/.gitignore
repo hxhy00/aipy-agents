@@ -1,0 +1,16 @@
+node_modules/
+# 构建产物：由 bun run build 从 server/ 生成
+server.js
+# 扩展打包产物
+*.mcpb
+*.dxt
+.DS_Store
+# 渲染输出目录
+doc-video-output/
+# ffmpeg 二进制由 scripts/fetch-ffmpeg.sh 获取，不入库（目录结构由 .gitkeep 保留）
+vendor/*/ffmpeg
+vendor/*/ffprobe
+vendor/*/ffmpeg.exe
+vendor/*/ffprobe.exe
+vendor/*/ffmpeg.exe.gz
+vendor/*/ffprobe.exe.gz

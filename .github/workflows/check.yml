@@ -1,0 +1,149 @@
+name: Check
+
+# 日常 push / PR 只做轻量校验，不打包（打包由 release.yml 在打 tag 时执行）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------
+  # 公众号发布套件：凭据泄露与基础语法检查
+  # ---------------------------------------------------------------
+  wechat-publish:
+    name: 校验 公众号发布套件
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python 语法编译检查
+        working-directory: agents/wechat-publish/publisher
+        run: python -m compileall -q main.py src && echo "语法 OK"
+
+      - name: 检查是否硬编码了真实凭据
+        run: |
+          set -euo pipefail
+          # 只在源码里查，排除参考文档与示例
+          HITS="$(grep -rnE '(appsecret|app_secret|api[_-]?key|access[_-]?token)\s*[:=]\s*["'"'"'][A-Za-z0-9_-]{16,}["'"'"']' \
+            agents/ --include='*.py' --include='*.js' --include='*.json' -i || true)"
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "::error::疑似硬编码凭据，必须改为 user_config 注入"
+            exit 1
+          fi
+          echo "OK: 未发现硬编码凭据"
+
+      - name: 检查是否误提交了运行时数据
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '\.venv/|__pycache__/|uv\.lock|\.pyc$'; then
+            echo "::error::版本库里混入了虚拟环境或缓存文件"
+            exit 1
+          fi
+          echo "OK: 版本库无运行时数据"
+
+  # ---------------------------------------------------------------
+  # 文档一键成片：ffmpeg 二进制不得入库
+  # ---------------------------------------------------------------
+  doc-video:
+    name: 校验 文档一键成片
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: JS 语法检查
+        run: |
+          set -euo pipefail
+          n=0
+          for f in $(find agents/doc-video/server -name '*.js'); do
+            node --check "$f"
+            n=$((n + 1))
+          done
+          echo "OK: 通过语法检查的文件数 $n"
+
+      - name: 确认 ffmpeg 二进制未入库
+        run: |
+          set -euo pipefail
+          # 二进制通过 scripts/fetch-ffmpeg.sh 获取，不应出现在版本库中
+          if git ls-files | grep -E 'vendor/.*/(ffmpeg|ffprobe)(\.exe)?(\.gz)?$'; then
+            echo "::error::ffmpeg 二进制被提交进了版本库（应改用 scripts/fetch-ffmpeg.sh 获取）"
+            exit 1
+          fi
+          echo "OK: 版本库无 ffmpeg 二进制"
+
+      - name: 校验 manifest 与 package.json 必需字段
+        working-directory: agents/doc-video
+        run: |
+          set -euo pipefail
+          node -e '
+            const m = require("./manifest.json");
+            const miss = ["dxt_version","name","version","server"].filter(k => !(k in m));
+            if (miss.length) { console.error("manifest.json 缺少字段: " + miss.join(",")); process.exit(1); }
+            console.log("OK: manifest.json 字段完整，version=" + m.version);
+          '
+
+  # ---------------------------------------------------------------
+  # 仓库卫生：目录结构约定
+  # ---------------------------------------------------------------
+  hygiene:
+    name: 校验 仓库结构
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查必需目录存在
+        run: |
+          set -euo pipefail
+          for d in agents/wechat-publish/publisher \
+                   agents/wechat-publish/skills/wechat-article-sop-layout \
+                   agents/doc-video/server \
+                   agents/doc-video/vendor \
+                   reference; do
+            [ -d "$d" ] || { echo "::error::缺少必需目录 $d"; exit 1; }
+          done
+          echo "OK: 目录结构符合约定"
+
+      - name: 检查打包忽略文件命名
+        run: |
+          set -euo pipefail
+          # 新版打包器读 .mcpbignore，旧版读 .dxtignore；两者混用会导致忽略规则失效
+          if find agents -name '.dxtignore' | grep -q .; then
+            echo "::warning::发现遗留的 .dxtignore，新版打包器可能不再识别，建议统一为 .mcpbignore"
+            find agents -name '.dxtignore'
+          else
+            echo "OK: 未发现遗留的 .dxtignore"
+          fi
+
+      - name: 检查图标格式（打包器强制要求 PNG）
+        run: |
+          set -euo pipefail
+          # mcpb pack 会硬校验 manifest.icon 指向的文件必须是 PNG，
+          # SVG 会直接导致打包失败。这里提前拦截，避免等到发版才发现。
+          fail=0
+          for mf in $(find agents -name manifest.json); do
+            dir=$(dirname "$mf")
+            icon=$(node -p "require('$PWD/$mf').icon || ''")
+            [ -n "$icon" ] || continue
+            case "$icon" in
+              *.png) ;;
+              *) echo "::error::$mf 的 icon 字段为 \"$icon\"，打包器要求 PNG 格式"; fail=1 ;;
+            esac
+            if [ ! -f "$dir/$icon" ]; then
+              echo "::error::$dir/$icon 文件不存在"; fail=1
+            elif ! file "$dir/$icon" | grep -q 'PNG image'; then
+              echo "::error::$dir/$icon 不是有效的 PNG 文件"; fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] && echo "OK: 所有图标均为有效 PNG" || exit 1

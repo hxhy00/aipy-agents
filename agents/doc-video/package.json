@@ -1,0 +1,26 @@
+{
+  "name": "@aipy-enterprise/doc-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "prebuild": "rm -f server.js",
+    "build": "bun build --outfile=server.js --production --target=node ./server/index.js",
+    "prepack": "bun run build",
+    "pack": "bun x @anthropic-ai/mcpb@2.1.2 pack . doc-video.mcpb",
+    "fetch-ffmpeg": "bash ../../scripts/fetch-ffmpeg.sh"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.24.2",
+    "mammoth": "^1.10.0",
+    "opentype.js": "^2.0.0",
+    "pdf-parse": "^1.1.1",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5",
+    "ws": "^8.18.0",
+    "zod": "3.25.76"
+  }
+}

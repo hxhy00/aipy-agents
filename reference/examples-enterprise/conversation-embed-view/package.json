@@ -1,0 +1,21 @@
+{
+  "name": "@aipy-enterprise/conversation-embed-view",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "rm -rf public server.js",
+    "build": "bun build.js && bun build --outfile=server.js --production --target=node ./src/server/index.js",
+    "prepack": "bun run build",
+    "postpack": "bash ../../postpack.sh",
+    "pack": "bun x @anthropic-ai/dxt pack"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "bun-plugin-tailwind": "^0.1.2",
+    "squark": "^2.0.4",
+    "tailwindcss": "^4.1.18"
+  }
+}

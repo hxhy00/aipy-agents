@@ -1,0 +1,13 @@
+{
+  "name": "@aipy-enterprise/embed-webview",
+  "version": "1.0.0",
+  "description": "embed-webview 示例项目 - 在 AiPy 中嵌入静态页面",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "bun build --outfile=server.js --production --target=node ./index.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

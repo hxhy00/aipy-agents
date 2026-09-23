@@ -1,0 +1,16 @@
+.venv
+uv.lock
+__pycache__
+*.pyc
+.git
+.gitignore
+.DS_Store
+data/
+_smoke_test.py
+_verify_templates.py
+_unzip_skill.py
+_skill_extract/
+# 打包产物与旧图标（manifest 引用的是 icon.png）
+*.mcpb
+*.dxt
+icon.svg

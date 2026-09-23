@@ -1,0 +1,15 @@
+{
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "bun build --outfile=server.js --production --target=node ./server/index.js",
+    "pack": "bun run build && npx @anthropic-ai/dxt pack"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.24.2",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@anthropic-ai/dxt": "^0.2.6"
+  }
+}

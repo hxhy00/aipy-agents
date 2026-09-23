@@ -1,0 +1,37 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-cybersecurity/gac",
+  "display_name": "创宇安全智脑IP情报",
+  "version": "1.0.0",
+  "description": "基于创宇安全智脑API，查询分析黑客 IP、C2服务器等，助力识别外部潜在威胁",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.svg",
+  "server": {
+    "type": "node",
+    "entry_point": "server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server.js"
+      ],
+      "env": {
+        "GAC_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "API Key",
+      "description": "智脑API Key",
+      "sensitive": false,
+      "required": false
+    }
+  },
+  "keywords": [
+    "conversation-tool",
+    "威胁情报"
+  ]
+}

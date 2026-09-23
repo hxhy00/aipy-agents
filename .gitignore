@@ -1,0 +1,99 @@
+# ============================================================
+# AiPy 智能体仓库 — 根级忽略规则
+# 说明：本仓库为 monorepo，各子项目另有自己的 .gitignore，
+#      这里只放「跨项目的通用产物」与「仓库级敏感文件」。
+# ============================================================
+
+# ---------- 操作系统 / 编辑器 ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# ---------- 扩展打包产物 ----------
+# .mcpb 是新版打包器的产物；.dxt 是旧版，保留规则以防本地残留
+*.mcpb
+*.dxt
+# skill 包与压缩交付物按需生成，不入库
+*.zip
+!agents/wechat-publish/skills/**/*.zip
+
+# ---------- Node.js ----------
+node_modules/
+package-lock.json.bak
+.npm/
+.pnpm-store/
+.yarn/cache
+.yarn/install-state.gz
+# 构建产物：由 bun run build 从 server/ 生成
+server.js
+bun.lockb
+*.tsbuildinfo
+
+# ---------- Python ----------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version.bak
+uv.lock
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# ---------- ffmpeg 二进制（由 scripts/fetch-ffmpeg.sh 获取） ----------
+# 三平台全量约 294MB，且 darwin-x64 单文件已逼近 GitHub 的 100MB 限制。
+# 保留目录结构（.gitkeep），只忽略二进制本身。
+agents/doc-video/vendor/*/ffmpeg
+agents/doc-video/vendor/*/ffprobe
+agents/doc-video/vendor/*/ffmpeg.exe
+agents/doc-video/vendor/*/ffprobe.exe
+agents/doc-video/vendor/*/ffmpeg.exe.gz
+agents/doc-video/vendor/*/ffprobe.exe.gz
+
+# ---------- 运行时输出目录 ----------
+agents/doc-video/doc-video-output/
+agents/doc-video/industry-research-output/
+agents/*/output/
+agents/*/*-output/
+**/.aipy/
+**/render-cache/
+
+# ---------- 本地配置与凭据 ----------
+.env
+.env.*
+!.env.example
+*.local
+secrets.json
+credentials.json
+# 微信 access_token 缓存（实现上落在 ~/.aipyapp/，此处兜底）
+token_*.json
+.token_cache
+access_token*.json
+
+# ---------- 需求/业务文档（不入公开仓库） ----------
+# 含内部流程文档与带时效令牌的预览链接，改用内部 Wiki / 网盘传递
+agents/wechat-publish/需求/
+
+# ---------- 本地临时脚本与解包目录 ----------
+_smoke_test.py
+_verify_templates.py
+_unzip_skill.py
+_skill_extract/
+*.tmp
+*.log

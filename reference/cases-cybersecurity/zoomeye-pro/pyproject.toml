@@ -1,0 +1,11 @@
+[project]
+name = "zoomeye-pro"
+version = "1.0.0"
+description = "ZoomEye Pro Mcp Server for AiPy"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.23.1",
+    "httpx>=0.27.0",
+    "starlette>=0.50.0",
+    "uvicorn>=0.38.0",
+]

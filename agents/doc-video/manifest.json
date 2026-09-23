@@ -1,0 +1,80 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-enterprise/doc-video",
+  "display_name": "讲解视频",
+  "version": "1.0.0",
+  "description": "文档一键成片：双规格输出（横屏 1920x1080 知识讲解 / 竖屏 1080x1920 短视频），拆分文案策划、质检、渲染三层职责；渲染下沉到独立服务端异步执行，对话内只做提交与轮询，规避长耗时阻塞",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server.js"
+      ],
+      "env": {
+        "VIDEO_RENDER_PORT": "${user_config.render_port}",
+        "VIDEO_RENDER_DIR": "${user_config.render_dir}",
+        "VIDEO_EDGE_TTS_VOICE": "${user_config.tts_voice}",
+        "AZURE_SPEECH_KEY": "${user_config.azure_speech_key}",
+        "AZURE_SPEECH_REGION": "${user_config.azure_speech_region}"
+      }
+    }
+  },
+  "user_config": {
+    "render_port": {
+      "type": "string",
+      "title": "渲染服务端口",
+      "description": "独立渲染服务端监听端口，默认 8765",
+      "default": "8765",
+      "required": false
+    },
+    "render_dir": {
+      "type": "string",
+      "title": "渲染产物目录",
+      "description": "视频与中间产物输出目录，默认当前工作目录下的 doc-video-output",
+      "required": false
+    },
+    "tts_voice": {
+      "type": "string",
+      "title": "默认配音音色",
+      "description": "配音音色名称，例如 zh-CN-XiaoxiaoNeural（女声）、zh-CN-YunxiNeural（男声）。Azure 与 Edge 音色名通用，配置 Azure 后无需修改",
+      "default": "zh-CN-XiaoxiaoNeural",
+      "required": false
+    },
+    "azure_speech_key": {
+      "type": "string",
+      "title": "Azure 语音 Key（可选）",
+      "description": "Azure AI Speech 订阅密钥。填写后优先使用 Azure 神经网络语音合成（音质更好、更稳定），失败时自动降级为 Edge TTS。留空则直接用 Edge TTS",
+      "sensitive": true,
+      "required": false
+    },
+    "azure_speech_region": {
+      "type": "string",
+      "title": "Azure 语音区域（可选）",
+      "description": "Azure 语音服务区域代码，例如 eastasia、southeastasia、eastus、chinaeast2。填写了 Key 时必须同时填写区域",
+      "default": "eastasia",
+      "sensitive": false,
+      "required": false
+    }
+  },
+  "prompts": [
+    {
+      "name": "文档转知识讲解视频（横屏）",
+      "text": "把我提供的文档做成一个横屏知识讲解视频。先分析文档结构，规划章节与讲解文案，提交渲染任务后持续查询进度直到完成，最后把成片路径和质检结论一起给我。"
+    },
+    {
+      "name": "文档转竖屏短视频",
+      "text": "把我提供的文档做成一个 60 秒以内的竖屏短视频，节奏要快、开头 3 秒要抓人。提交渲染任务后持续查询进度，完成后给出成片与质检结论。"
+    }
+  ],
+  "keywords": [
+    "conversation-tool",
+    "效率工具",
+    "音视频"
+  ]
+}

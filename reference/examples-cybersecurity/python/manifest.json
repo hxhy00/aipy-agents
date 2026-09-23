@@ -1,0 +1,33 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-cybersecurity/time",
+  "display_name": "Time",
+  "version": "1.0.0",
+  "description": "time extension for AiPy",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.svg",
+  "server": {
+    "type": "python",
+    "entry_point": "main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "${__dirname}/main.py"
+      ],
+      "env": {}
+    }
+  },
+  "prompts": [
+      {
+        "name": "example",
+        "text": "我想要知道当前系统时间：\n 请使用 time 工具获取当前系统时间，并返回结果。"
+      }
+  ],
+  "keywords": [
+    "conversation-tool",
+    "安全服务"
+  ]
+}

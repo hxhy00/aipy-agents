@@ -1,0 +1,23 @@
+/server/
+/node_modules/
+/package.json
+/package-lock.json
+bun.lock
+.gitignore
+.DS_Store
+*.dxt
+*.mcpb
+README.md
+/smoke-test.mjs
+/protocol-check.mjs
+/sample-*.md
+/doc-video-output/
+/industry-research-output/
+# 开发工具脚本，不随包分发
+/scripts/
+# 旧图标：manifest 引用的是 icon.png（打包器强制要求 PNG 格式）
+icon.svg
+# 注意：/vendor/ 必须随包分发（内置 ffmpeg / ffprobe），不要加入忽略列表
+# 内置二进制为三平台全量：darwin-arm64 / darwin-x64 / win32-x64
+# Windows 侧为 .gz 压缩存放，首次调用时由 server/lib/binaries.js 惰性解压到 ~/.aipy/bin
+# 获取方式见 vendor/README.md 与根目录 scripts/fetch-ffmpeg.sh

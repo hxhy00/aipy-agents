@@ -1,0 +1,52 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-cybersecurity/zoomeye-pro",
+  "display_name": "ZoomEye Pro资产管理",
+  "version": "1.0.0",
+  "description": "基于 ZoomEye Pro 的资产管理与安全分析智能体，提供从资产发现、指纹识别到漏洞扫描的全流程安全能力，支持“两高一弱”（高危漏洞、高风险漏洞、弱口令）检测",
+  "author": {
+    "name": "ZoomEye Pro"
+  },
+  "icon": "icon.svg",
+  "server": {
+    "type": "python",
+    "entry_point": "main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "${__dirname}/main.py"
+      ],
+      "env": {
+        "ZOOMEYE_BE_ENDPOINT": "${user_config.endpoint}",
+        "ZOOMEYE_BE_USERNAME": "${user_config.username}",
+        "ZOOMEYE_BE_PASSWORD": "${user_config.password}"
+      }
+    }
+  },
+  "user_config": {
+    "endpoint": {
+      "type": "string",
+      "title": "服务地址",
+      "description": "ZoomEye Pro 服务地址，例如: https://192.168.3.3",
+      "required": true
+    },
+    "username": {
+      "type": "string",
+      "title": "用户名",
+      "description": "ZoomEye Pro 登录用户名",
+      "required": true
+    },
+    "password": {
+      "type": "string",
+      "title": "密码",
+      "description": "ZoomEye Pro 登录密码",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "keywords": [
+    "conversation-tool",
+    "安全产品"
+  ]
+}

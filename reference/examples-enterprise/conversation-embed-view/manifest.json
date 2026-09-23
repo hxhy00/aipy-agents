@@ -1,0 +1,26 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-enterprise/conversation-embed-view",
+  "display_name": "对话嵌入页面示例",
+  "version": "1.0.0",
+  "description": "conversation-embed-view 类型智能体示例，在 AiPy 对话流中嵌入交互页面，用户操作后可返回结果至对话",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.svg",
+  "server": {
+    "type": "node",
+    "entry_point": "server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server.js"
+      ],
+      "env": {}
+    }
+  },
+  "keywords": [
+    "conversation-embed-view",
+    "其他"
+  ]
+}
