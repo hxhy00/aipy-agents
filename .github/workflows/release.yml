@@ -202,10 +202,12 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
+          # 按文件名匹配（download-artifact 会保留上传时的子目录层级，如 dist/wechat-publish/publisher/...）
+          # 打 wechat-v* 只产生 wechat 两个文件，doc-video 路径不匹配属预期，不要开 fail_on_unmatched_files
           files: |
-            dist/wechat-publish/wechat-sop-publish-assistant.mcpb
-            dist/wechat-publish/wechat-article-sop-layout.zip
-            dist/doc-video/doc-video.mcpb
+            dist/**/wechat-sop-publish-assistant.mcpb
+            dist/**/wechat-article-sop-layout.zip
+            dist/**/doc-video.mcpb
           body: |
             ## 安装方式
 
