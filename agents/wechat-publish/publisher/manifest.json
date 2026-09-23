@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "@aipy-enterprise/wechat-sop-publish-assistant",
   "display_name": "公众号SOP发布助手",
-  "version": "0.4.1",
+  "version": "1.0.0",
   "description": "公众号文章从终稿到草稿箱：解析终稿（Word/Markdown/TXT）为 Markdown、把排版好的 HTML 导入微信公众号草稿箱（发布前强制做微信渲染兼容性校验、正文图片中转上传、封面上传、写入草稿），并支持文字层校验（标点规范/品牌名/敏感词）。仅写草稿箱，不做正式群发。配合 wechat-article-sop-layout 技能可完成「终稿→选模板→排版→三重预检→草稿箱」全流程。",
   "author": {
     "name": "AiPy Team"

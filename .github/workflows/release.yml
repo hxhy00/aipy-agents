@@ -44,9 +44,14 @@ jobs:
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
-          echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION"
+          PYPROJECT_VERSION="$(node -e "console.log(require('fs').readFileSync('pyproject.toml','utf8').match(/^version\s*=\s*\"([^\"]+)\"/m)[1])")"
+          echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION  pyproject=$PYPROJECT_VERSION"
           if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
             echo "::error::tag 版本($TAG_VERSION) 与 manifest.json 版本($MANIFEST_VERSION) 不一致"
+            exit 1
+          fi
+          if [ "$MANIFEST_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "::error::manifest.json 版本($MANIFEST_VERSION) 与 pyproject.toml 版本($PYPROJECT_VERSION) 不一致"
             exit 1
           fi
 

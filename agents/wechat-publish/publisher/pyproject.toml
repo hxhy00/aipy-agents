@@ -1,6 +1,6 @@
 [project]
 name = "wechat-sop-publish-assistant"
-version = "0.4.0"
+version = "1.0.0"
 description = "WeChat draft publisher extension for AiPy"
 requires-python = ">=3.12"
 dependencies = [
