@@ -39,7 +39,9 @@
 | `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP + Pygments + Pillow | `wechat-sop-publish-assistant.dxt` | 约 125 KB |
 | `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.dxt` | 约 2 MB |
 
-> 公众号发布套件 2.0.0 起不再有独立的排版 skill 包：排版知识与预检能力已并入上面这一个 `.dxt`，用户只装一个包。
+> 公众号发布套件 2.0.1 起不再有独立的排版 skill 包：排版知识与预检能力已并入上面这一个 `.dxt`，用户只装一个包。
+
+> **请使用 2.0.1**：`wechat-v2.0.0` 的 Release 附件后缀为 `.mcpb`，AiPy 无法安装，请改用 `wechat-v2.0.1`。
 
 > `doc-video` 不再内置 ffmpeg。三平台全量约 126 MB，打包后超过 GitHub Release 单文件 100 MB 硬限制，
 > 改为要求用户自行安装（macOS：`brew install ffmpeg`；Windows：`winget install Gyan.FFmpeg`）。
@@ -99,7 +101,7 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 
 | 扩展 | tag 形式 | 触发 job | 产物 |
 |------|----------|----------|------|
-| 公众号发布套件 | `wechat-v2.0.0` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
+| 公众号发布套件 | `wechat-v2.0.1` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
 | 文档一键成片 | `doc-video-v1.0.0` | `doc-video` | `doc-video.dxt` |
 
 ```bash
@@ -109,8 +111,8 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 #    文档一键成片：  agents/doc-video/manifest.json 的 version
 
 # 2. 打 tag 并推送（只发哪个扩展就打哪个前缀的 tag）
-git tag wechat-v2.0.0
-git push origin wechat-v2.0.0
+git tag wechat-v2.0.1
+git push origin wechat-v2.0.1
 
 # 或发文档一键成片
 git tag doc-video-v1.0.0
@@ -178,7 +180,7 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 ### 为什么排版 skill 被合并进智能体
 
-2.0.0 之前，公众号发布套件发两个 AiPy 扩展：一个智能体（`.dxt`）+ 一个 skill（`.zip`，需单独安装）。现在合并为一个智能体。合并的理由不是「少发一个文件」，而是 AiPy 规范里 **skill 与智能体是两种并列的项目类型**：
+2.0.1 之前，公众号发布套件发两个 AiPy 扩展：一个智能体（`.dxt`）+ 一个 skill（`.zip`，需单独安装）。现在合并为一个智能体。合并的理由不是「少发一个文件」，而是 AiPy 规范里 **skill 与智能体是两种并列的项目类型**：
 
 | | skill | 智能体 |
 |---|------|--------|

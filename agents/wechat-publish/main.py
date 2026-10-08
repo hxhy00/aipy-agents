@@ -46,7 +46,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wechat-sop-publish-assistant")
 
-app = Server("wechat-sop-publish-assistant", version="2.0.0")
+app = Server("wechat-sop-publish-assistant", version="2.0.1")
 
 TOOL_PUBLISH = "publish_draft"
 TOOL_CHECK = "check_text"
