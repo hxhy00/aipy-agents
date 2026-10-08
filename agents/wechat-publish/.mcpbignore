@@ -1,5 +1,6 @@
 .venv
-uv.lock
+# uv.lock 有意进包：本扩展不是构建产物而是源码直跑，宿主以 `uv run` 启动（见 manifest.json），
+# 锁文件随包分发，用户装包后 `uv run` 才按同一份解析结果装依赖；不入包等于把漂移留给终端用户。
 __pycache__
 *.pyc
 .git

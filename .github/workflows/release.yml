@@ -1,14 +1,12 @@
 name: Release Extensions
 
 # 触发方式：只打 tag 才构建与发布。
-# 日常 push 代码不跑打包（ffmpeg 打包很耗时且耗 CI 额度），只做轻量校验。
-# 采用「分扩展前缀 tag」，两个扩展可独立发版：
-#   wechat-v*     → 只跑 wechat-publish job
-#   doc-video-v*  → 只跑 doc-video job
+# 日常 push 代码不跑打包（mcpb pack 较耗时且耗 CI 额度），只做轻量校验（见 check.yml）。
+# tag 用「扩展名前缀」命名，将来新增扩展时在此补一行前缀、对应的 job 用 startsWith 自行分流：
+#   wechat-v*  → 跑 wechat-publish job
 on:
   push:
     tags:
-      - "doc-video-v*"
       - "wechat-v*"
   # 手动兜底：需要临时出包时到 Actions 页面点按钮
   # 注意：手动触发时 GITHUB_REF_NAME 是分支名，版本一致性校验会自动跳过（见各 job 的校验步骤）
@@ -41,7 +39,7 @@ jobs:
   wechat-publish:
     name: 打包 公众号发布套件
     runs-on: ubuntu-latest
-    # 仅 wechat-v* tag 触发本 job；手动触发时两个 job 都跑，便于临时出包
+    # 仅 wechat-v* tag 触发本 job；手动触发（workflow_dispatch）时也跑，便于临时出包
     if: startsWith(github.ref, 'refs/tags/wechat-v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
@@ -77,13 +75,6 @@ jobs:
         run: |
           set -euo pipefail
           PKG="agents/wechat-publish/wechat-sop-publish-assistant.dxt"
-          # 后缀闸门：AiPy Pro 安装前做 [".zip",".dxt"].includes(后缀) 校验，
-          # .mcpb 会被直接拒绝。「打包成功」不等于「装得上」，这里把该约束固化成闸门防回归。
-          EXT="${PKG##*.}"
-          case "${EXT}" in
-            zip|dxt) echo "产物后缀：.${EXT}（AiPy 可安装）" ;;
-            *) echo "::error::产物后缀 .${EXT} 不被 AiPy 接受（仅允许 .zip/.dxt），用户会装不上"; exit 1 ;;
-          esac
           # 清单只解一次并复用：既省掉重复解压，也避免 set -o pipefail 下
           # 「unzip -l | grep -q」因 grep 提前退出、反让 unzip 收到 SIGPIPE(141)
           # 而把管道状态判成非 0、误报「缺少必需文件」
@@ -94,8 +85,10 @@ jobs:
           for f in manifest.json main.py pyproject.toml icon.png .python-version src/publisher.py src/wechat_compat.py; do
             printf '%s\n' "$LIST" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
           done
-          # 虚拟环境与缓存绝不能进包（含 uv.lock）
-          if printf '%s\n' "$LIST" | grep -qE "\.venv/|__pycache__/|\.pyc\$|uv\.lock"; then
+          # 虚拟环境与缓存绝不能进包。
+          # uv.lock 不在此列：它随包分发，是用户侧 `uv run` 复现依赖解析的前提（见 .mcpbignore 同名说明），
+          # 拦它会与「让依赖可复现」的目标自相矛盾。
+          if printf '%s\n' "$LIST" | grep -qE "\.venv/|__pycache__/|\.pyc\$"; then
             echo "::error::产物夹带了虚拟环境或缓存文件"; exit 1
           fi
 
@@ -106,7 +99,7 @@ jobs:
           printf '%s\n' "$LIST" | grep -q " resources/SOP\.md\$" \
             || { echo "::error::产物缺少 resources/SOP.md（排版全流程规则入口，get_sop 依赖它）"; exit 1; }
           # references（排版规范，现 10 篇）与 assets（视觉素材，现 19 个）设「下限」而非等值：
-          # 本闸门只防「知识库整体丢失 / 被 .mcpbignore 误放行」，以后新增规范或素材不必改这里
+          # 本项只防「知识库整体丢失 / 被 .mcpbignore 误放行」，以后新增规范或素材不必改这里
           N_REF=$(printf '%s\n' "$LIST" | grep -cE " resources/references/[^/]+\.md\$" || true)
           N_ASSET=$(printf '%s\n' "$LIST" | grep -cE " resources/assets/.+[^/]\$" || true)
           echo "包内知识库：references=$N_REF 篇，assets=$N_ASSET 个"
@@ -127,11 +120,12 @@ jobs:
             exit 1
           fi
 
-          # 体积闸门：当前约 125KB（实测 128055 字节，不含 .mcpbignore 排除的 README.md），明显偏大说明打包规则失效
+          # 体积上限校验：当前约 197KB（实测 201893 字节 / 52 个文件，uv.lock 随包后上涨约 60%，
+          # 不含 .mcpbignore 排除的 README.md），明显偏大说明打包规则失效
           SIZE=$(stat -c%s "$PKG")
           echo "产物体积：$((SIZE / 1024)) KB"
           if [ "$SIZE" -ge 2097152 ]; then
-            echo "::error::产物 $((SIZE / 1024)) KB 异常偏大（上限 2MB，当前应 125KB 级），请检查 .mcpbignore 是否被改坏"
+            echo "::error::产物 $((SIZE / 1024)) KB 异常偏大（上限 2MB，当前应 200KB 级），请检查 .mcpbignore 是否被改坏"
             exit 1
           fi
           echo "OK: 产物校验通过"
@@ -144,102 +138,27 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------
-  # 文档一键成片（Node.js 工具型智能体；ffmpeg 由用户自行安装，不打进包）
-  # ---------------------------------------------------------------
-  doc-video:
-    name: 打包 文档一键成片
-    runs-on: ubuntu-latest
-    # 仅 doc-video-v* tag 触发本 job；手动触发时两个 job 都跑，便于临时出包
-    if: startsWith(github.ref, 'refs/tags/doc-video-v') || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: 版本一致性校验
-        # 手动触发时 GITHUB_REF_NAME 是分支名，无法比对，跳过校验
-        if: github.event_name == 'push'
-        working-directory: agents/doc-video
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#doc-video-v}"
-          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
-          echo "tag=$TAG_VERSION  manifest=$MANIFEST_VERSION"
-          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
-            echo "::error::tag 版本($TAG_VERSION) 与 manifest.json 版本($MANIFEST_VERSION) 不一致"
-            exit 1
-          fi
-
-      - name: 安装依赖
-        working-directory: agents/doc-video
-        run: bun install --frozen-lockfile
-
-      - name: 构建 server.js
-        working-directory: agents/doc-video
-        run: bun run build
-
-      - name: 打包扩展
-        run: |
-          cd agents/doc-video
-          npx -y ${MCPB_CLI} pack . doc-video.dxt
-
-      - name: 校验产物内容与体积
-        run: |
-          set -euo pipefail
-          PKG="agents/doc-video/doc-video.dxt"
-          # 后缀闸门：AiPy Pro 安装前做 [".zip",".dxt"].includes(后缀) 校验，
-          # .mcpb 会被直接拒绝。「打包成功」不等于「装得上」，这里把该约束固化成闸门防回归。
-          EXT="${PKG##*.}"
-          case "${EXT}" in
-            zip|dxt) echo "产物后缀：.${EXT}（AiPy 可安装）" ;;
-            *) echo "::error::产物后缀 .${EXT} 不被 AiPy 接受（仅允许 .zip/.dxt），用户会装不上"; exit 1 ;;
-          esac
-          echo "--- 产物清单 ---"
-          unzip -l "$PKG"
-          # 必需运行时文件
-          for f in manifest.json server.js icon.png; do
-            unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
-          done
-          # 源码与依赖不能进包
-          if unzip -l "$PKG" | grep -qE " server/| node_modules/| package\.json\$"; then
-            echo "::error::产物夹带了源码或依赖"; exit 1
-          fi
-          # ffmpeg 不随包分发（用户自行安装）：夹带会让产物超过 Release 单文件上限
-          if unzip -l "$PKG" | grep -qE " vendor/.*(ffmpeg|ffprobe)"; then
-            echo "::error::产物夹带了 ffmpeg 二进制，会让包体积失控，请检查 .mcpbignore 的 /vendor/ 规则"; exit 1
-          fi
-          # 体积闸门：正常应在 2MB 上下，明显偏大说明打包规则失效
-          SIZE=$(stat -c%s "$PKG")
-          MB=$((SIZE / 1024 / 1024))
-          echo "产物体积：${MB} MB"
-          if [ "$SIZE" -ge 20000000 ]; then
-            echo "::error::产物 ${MB}MB 异常偏大（预期 2MB 级），请检查 .mcpbignore 是否被改坏"
-            exit 1
-          fi
-          echo "OK: 产物校验通过"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: doc-video
-          path: agents/doc-video/doc-video.dxt
-          if-no-files-found: error
-
-  # ---------------------------------------------------------------
   # 汇总发布：把本次实际构建的产物挂到同一个 GitHub Release
-  # 每次 tag 只会有一个扩展 job 真正执行，另一个被 skip，
-  # 因此这里用 always() + 结果判断，保证「至少一个成功即可发布」。
   # ---------------------------------------------------------------
   publish:
     name: 发布 Release
-    needs: [wechat-publish, doc-video]
+    needs: [wechat-publish]
     runs-on: ubuntu-latest
-    # 至少一个前置 job 成功，且没有任何失败/取消，才发布
-    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && contains(needs.*.result, 'success')
+    # 原为 needs 同时依赖两个扩展 job + always() + 「至少一个 success」判断：
+    # 因为两个扩展并行、只有匹配 tag 的那个真正执行、另一个被 skip，才需要 always() 去
+    # 覆盖「前置被 skip」这一情形，再手工从 needs.*.result 里挑出成功的那一个。
+    # 现在仓库只剩 wechat-publish 一个扩展，它就是 needs 里唯一的依赖：
+    #   它 success → 有产物可发（唯一可发布路径）；skipped → 没产物；
+    #   failure / cancelled → 中断，绝不该发。
+    # 收敛成 success()：它在 needs 长度为 1 时与上面的组合条件逐项等价（见下方对照），
+    # 且不依赖「needs 恒含 success」这种间接推理，既不会恒真放行，也不会因 job 被 skip 而误判。
+    #   needs 结果   原组合条件           success()
+    #   success      true(发布)           true(发布)
+    #   skipped      false                false
+    #   failure      false                false
+    #   cancelled    false                false
+    # 将来新增第二个扩展时，必须把这段改回 always() + 结果判断的写法。
+    if: success()
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -254,10 +173,13 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           # 按文件名匹配（download-artifact 会保留上传时的子目录层级，如 dist/wechat-publish/wechat-sop-publish-assistant.dxt）
-          # 打 wechat-v* 只产生 wechat 一个产物，doc-video 路径不匹配属预期，不要开 fail_on_unmatched_files
+          # 目前只有 wechat 一个产物，上面这个 glob 必须命中它才谈得上发布。
+          # 不开 fail_on_unmatched_files（保持默认 false）：产物缺失已由上游 wechat-publish 的
+          # upload-artifact `if-no-files-found: error` 拦死（打包没出文件会直接让 job 失败，
+          # publish 的 success() 就不会成立），上游这道闸门更早、更准，这里不必再加一道
+          # 会因 download-artifact 目录层级调整而误失败的闸门。
           files: |
             dist/**/wechat-sop-publish-assistant.dxt
-            dist/**/doc-video.dxt
           body: |
             ## 安装方式
 
@@ -266,8 +188,3 @@ jobs:
             | 产物 | 类型 | 说明 |
             |------|------|------|
             | `wechat-sop-publish-assistant.dxt` | 智能体 | 公众号文章从终稿到草稿箱全流程（含排版 SOP 知识库），装一个包即可 |
-            | `doc-video.dxt` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频） |
-
-            > `doc-video.dxt` 已不内置 ffmpeg（三平台全量约 126 MB，会超过 GitHub Release 单文件 100 MB 限制）。
-            > 使用前请先安装：macOS 执行 `brew install ffmpeg`，Windows 执行 `winget install Gyan.FFmpeg`。
-            > 插件会自动在 PATH 与常见安装路径中查找；如仍检测不到，可在插件设置中用环境变量 `FFMPEG_PATH` 指定绝对路径。

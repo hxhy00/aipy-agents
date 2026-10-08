@@ -86,7 +86,7 @@ publish_draft(html_path="排版.html", title="标题", cover_path="封面.png")
 
 - AiPy 企业版 **Python 工具型**智能体（DXT 规范）
 - Streamable HTTP Server（`mcp 1.x` + Starlette + uvicorn，动态端口）
-- Python 3.12，依赖用 **uv** 管理
+- Python 3.12，依赖用 **uv** 管理（`uv.lock` 随包分发，保证用户机器上依赖解析可复现）
 - AppID / AppSecret 通过 `user_config` 注入环境变量
 
 ## 使用前置条件

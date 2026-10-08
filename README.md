@@ -1,6 +1,6 @@
 # AiPy 智能体扩展集
 
-面向 [AiPy](https://www.aipy.app) 客户端的智能体扩展（MCP Bundle）开发仓库。以 monorepo 形式管理自研智能体，并归档官方开发规范与示例代码。
+面向 [AiPy](https://www.aipy.app) 客户端的智能体扩展（MCP Bundle）开发仓库。`agents/` 下每个子目录即一个自研智能体，独立打包、独立发版；并归档官方开发规范与示例代码。
 
 ## 仓库结构
 
@@ -10,18 +10,12 @@
 │   ├── check.yml                 # 日常校验：语法、凭据泄露、目录约定
 │   └── release.yml               # 打 tag 时构建产物并发布 Release
 ├── agents/                       # 自研智能体
-│   ├── wechat-publish/           # 公众号发布套件（Python，单智能体）
-│   │   ├── main.py               #   扩展入口：MCP 服务，13 个工具
-│   │   ├── src/                  #   解析 / 校验 / 发布逻辑，工具实现
-│   │   └── resources/            #   内置知识层：SOP + 排版规范 + 视觉素材，随包分发
-│   └── doc-video/                # 文档一键成片（Node.js）
-│       ├── server/               #   服务端源码
-│       ├── prompts/              #   注入 AiPy 的系统提示词
-│       └── vendor/               #   ffmpeg 目录（发布包不携带，仅供本地调试）
+│   └── wechat-publish/           # 公众号发布套件（Python，单智能体）
+│       ├── main.py               #   扩展入口：MCP 服务，13 个工具
+│       ├── src/                  #   解析 / 校验 / 发布逻辑，工具实现
+│       └── resources/            #   内置知识层：SOP + 排版规范 + 视觉素材，随包分发
 ├── docs/                         # 项目文档
 │   └── 实现规划.md               #   公众号发布套件实现规划
-├── scripts/
-│   └── fetch-ffmpeg.sh           # 三平台 ffmpeg 获取脚本（本地与 CI 复用）
 └── reference/                    # 参考资料，不参与构建
     ├── AiPy智能体开发规范-V3.0.md
     ├── examples-enterprise/      #   官方示例（企业版）
@@ -30,22 +24,17 @@
     └── cases-cybersecurity/      #   官方实际案例（网安版）
 ```
 
-## 两个自研智能体
+## 自研智能体
 
 每个扩展打一个包，装一个包就能用。
 
 | 项目 | 类型 | 技术栈 | 产物 | 体积 |
 |------|------|--------|------|------|
-| `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP + Pygments + Pillow | `wechat-sop-publish-assistant.dxt` | 约 125 KB |
-| `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.dxt` | 约 2 MB |
+| `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP + Pygments + Pillow | `wechat-sop-publish-assistant.dxt` | 约 197 KB |
 
 > 公众号发布套件 2.0.1 起不再有独立的排版 skill 包：排版知识与预检能力已并入上面这一个 `.dxt`，用户只装一个包。
 
-> **请使用 2.0.1**：`wechat-v2.0.0` 的 Release 附件后缀为 `.mcpb`，AiPy 无法安装，请改用 `wechat-v2.0.1`。
-
-> `doc-video` 不再内置 ffmpeg。三平台全量约 126 MB，打包后超过 GitHub Release 单文件 100 MB 硬限制，
-> 改为要求用户自行安装（macOS：`brew install ffmpeg`；Windows：`winget install Gyan.FFmpeg`）。
-> 插件侧 `server/lib/binaries.js` 会自动在 PATH 与常见安装路径中查找，详见 [agents/doc-video/vendor/README.md](agents/doc-video/vendor/README.md)。
+> **请使用 2.0.2 或更高版本**：`wechat-v2.0.0` 的 Release 附件后缀为 `.mcpb`，AiPy 无法安装；首个可用版本是 2.0.1（产物后缀已修正为 `.dxt`）。
 
 ## 本地开发
 
@@ -62,25 +51,6 @@ uv run main.py
 
 `render_code_images`（代码块转图片）需要系统里有一款**带中文字形**的字体，macOS / Windows / 主流 Linux 发行版默认都有；若提示找不到字体，装一份思源黑体（Source Han Sans）即可。详见下文「代码块转图片为什么不用 Playwright」。
 
-### 文档一键成片
-
-```bash
-cd agents/doc-video
-bun install
-bun run build                             # 生成 server.js
-bun run dev
-
-# 运行前置：本机需已安装 ffmpeg（brew install ffmpeg / winget install Gyan.FFmpeg）
-```
-
-如果本机没有 ffmpeg、想验证「内置二进制」这条链路，可以把它拉到 `vendor/` 供本地调试
-（发布包不会携带，`.mcpbignore` 已排除 `/vendor/`）：
-
-```bash
-bash scripts/fetch-ffmpeg.sh              # 自动识别当前平台
-bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
-```
-
 ## 发布流程
 
 ### 关于 CI / CD 的定位
@@ -90,48 +60,41 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 | 阶段 | 归属 | 本仓库的对应 |
 |------|------|--------------|
 | 代码提交后校验（语法、凭据泄露、目录约定） | **CI**（持续集成） | `check.yml`，push / PR 触发 |
-| 构建产物（打包 `.dxt`） | **CI**（构建属于集成的延伸） | `release.yml` 的 `wechat-publish` / `doc-video` 两个 job |
+| 构建产物（打包 `.dxt`） | **CI**（构建属于集成的延伸） | `release.yml` 的 `wechat-publish` job |
 | 发布产物到 Release（交付给用户） | **CD**（持续交付） | `release.yml` 的 `publish` job |
 
 业界把「构建 + 产出可交付物」通常统称 CI，「把产物送到用户手里」才叫 CD。本仓库两者放在同一个 workflow，通过 job 依赖串起来。注意这里只做到**交付**（Release 附件待人工确认），没有做到**部署**（自动上架到 AiPy 集市），所以严格说是 CD 中的「持续交付」而非「持续部署」。
 
 ### 发版步骤
 
-两个扩展通过**分扩展前缀 tag** 独立发版，互不影响：
+发版用**带扩展前缀的 tag** 触发，CI 靠前缀判断这次该构建哪个扩展。当前只有一个扩展，但前缀机制保留，后续新增扩展直接沿用：
 
 | 扩展 | tag 形式 | 触发 job | 产物 |
 |------|----------|----------|------|
-| 公众号发布套件 | `wechat-v2.0.1` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
-| 文档一键成片 | `doc-video-v1.0.0` | `doc-video` | `doc-video.dxt` |
+| 公众号发布套件 | `wechat-v2.0.2` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
 
 ```bash
 # 1. 改版本号（tag 去掉对应前缀后必须等于 manifest 里的 version，CI 会校验）
 #    公众号发布套件：agents/wechat-publish/manifest.json 的 version
 #                    （同时需与同目录 pyproject.toml 的 version 一致）
-#    文档一键成片：  agents/doc-video/manifest.json 的 version
 
-# 2. 打 tag 并推送（只发哪个扩展就打哪个前缀的 tag）
-git tag wechat-v2.0.1
-git push origin wechat-v2.0.1
-
-# 或发文档一键成片
-git tag doc-video-v1.0.0
-git push origin doc-video-v1.0.0
+# 2. 打 tag 并推送
+git tag wechat-v2.0.2
+git push origin wechat-v2.0.2
 ```
 
-推送 tag 后 CI 自动完成（只有对应的扩展 job 会执行，另一个被跳过）：
+推送 tag 后 CI 自动完成：
 
-1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败；`wechat-publish` 还会校验 `pyproject.toml`）
-2. `doc-video`：安装依赖 → `bun run build` → 打包
-3. `wechat-publish`：打包智能体（知识库随包走，不单独产出 zip）
-4. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码 / ffmpeg 是否误入包、失效引用是否写回文档、体积是否异常）
-5. 创建 GitHub Release 并上传本次构建的产物（`publish` job 只要至少一个扩展 job 成功即发布）
+1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败；同时校验 `pyproject.toml`）
+2. 打包智能体（知识库随包走，不单独产出 zip）
+3. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码是否误入包、失效引用是否写回文档、体积是否异常）
+4. 创建 GitHub Release 并上传本次构建的产物
 
-也可以到 Actions 页面手动触发 `workflow_dispatch`（此时两个扩展 job 都会执行，版本一致性校验自动跳过）。
+也可以到 Actions 页面手动触发 `workflow_dispatch`（此时会直接打包，版本一致性校验自动跳过）。
 
 ### 为什么日常 push 不打包
 
-`doc-video` 打包要跑 Bun 构建并产出可交付产物，属于「重活」，而日常改动大多只是改一行文案或路径。因此拆成两个 workflow：日常只跑秒级的轻量校验（语法、凭据、结构约定），打 tag 才构建与发布。
+打包是发版动作，产物只在打 tag 时才需要，而日常改动大多只是改一行文案或路径。因此拆成两个 workflow：日常只跑秒级的轻量校验（语法、凭据、结构约定），打 tag 才构建与发布。
 
 ## 关键技术约定
 
@@ -144,7 +107,9 @@ git push origin doc-video-v1.0.0
 | 上游工具 | Anthropic 把打包 CLI 从 `@anthropic-ai/dxt` 改名为 `@anthropic-ai/mcpb`，产物默认后缀随之变成 `.mcpb` |
 | 目标平台 | AiPy 客户端**没有跟进这次改名**。AiPy Pro 2.1.0 的 `app.asar` 里，装扩展的后缀白名单写死为 `[".zip", ".dxt"]`，文件选择器只放行 `zip / dxt / md`，整个应用包内 `.mcpb` 出现 0 次；AiPy 商店所有扩展的下载链接也全部以 `.dxt` 结尾 |
 
-**打包工具叫什么，和产物能不能被平台装上，是两件事。** 平台认的是文件后缀白名单，不认 CLI 包名；本仓库的约定因此是「用 `mcpb` CLI 打包，显式指定 `.dxt` 输出名」。「打包成功」不等于「装得上」，所以 `release.yml` 里另有一条**产物后缀闸门**：只放行 `.zip` / `.dxt`，其他后缀直接判失败——把这条平台约束固化成 CI 断言，防止以后再被打包器默认值带偏。
+**打包工具叫什么，和产物能不能被平台装上，是两件事。** 平台认的是文件后缀白名单，不认 CLI 包名；本仓库的约定因此是「用 `mcpb` CLI 打包，**显式指定 `.dxt` 输出名**」——`release.yml` 里的打包命令直接写死 `pack . wechat-sop-publish-assistant.dxt`，产物名是构造上确定的，不另加后缀校验。
+
+这条约束靠「命令写对」保证，不靠运行时拦截兜底：`pack <目录>` 省略输出参数时才会回落到打包器默认后缀 `.mcpb`（见下方实测差异），而仓库里从 CI 到本地脚本一律显式传了输出名，真要防回归只需保证命令不被改回省略形式。
 
 > 顺带说明改名为什么是安全的：`.dxt` 与 `.mcpb` 都是 zip 容器，改名后包内 `manifest.json` 哈希完全一致、内容零差异，且包内已有 AiPy 读取的 `"dxt_version": "0.1"`。所以改的只是文件名，不是包内容。
 
@@ -176,7 +141,8 @@ sips -s format png -Z 512 icon.svg --out icon.png
 公众号发布套件的忽略规则里有两条容易踩的：
 
 - `resources/` 下的 `.md` **必须保留**——那是模型直接读取的知识层，排除掉等于智能体没了排版能力。排除的是根级 `README.md`（开发说明，给维护者看的，不随包分发）。
-- 当前产物 51 个文件、约 125 KB，其中 `resources/` 占 31 个。体积闸门在 `release.yml`，知识库变大时会先被拦下。
+- **`uv.lock` 必须保留进包**——本扩展不是构建产物而是源码直跑，宿主以 `uv run` 启动（见 `manifest.json`），锁文件是用户机器上依赖解析可复现的唯一依据。排除它等于把版本漂移留给终端用户；「它不是源码所以不该进包」是误判。
+- 当前产物 52 个文件、约 197 KB，其中 `resources/` 占 31 个（`uv.lock` 随包后新增 1 个文件、约 224 KB 未压缩）。体积上限校验在 `release.yml`，知识库变大时会先被拦下。
 
 ### 为什么排版 skill 被合并进智能体
 
@@ -221,26 +187,14 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 合并最大的失败模式是「文档里写回已删除的路径，然后模型去执行不存在的脚本」。`check.yml` 加了 grep 守卫拦住它：
 
-- `resources/` 与 `manifest.json` 是模型直接读取的内容，禁止重新出现已删除的 skill 目录名或 `scripts/` 路径（`resources/evals/` 是评测基线，允许记录历史脚本名，例外）。
+- `resources/` 与 `manifest.json` 是模型直接读取的内容，禁止重新出现已删除的 skill 目录名，或已合并的排版 skill 曾有的脚本路径（如 `scripts/read_draft.py`，原在 `skills/wechat-article-sop-layout/scripts/` 下）——这些脚本已随 skill 合并改造成 MCP 工具并删除，写回文档等于让模型去执行不存在的文件。仓库根的 `scripts/` 目录同样不存在，别当成可用目录（`resources/evals/` 是评测基线，允许记录历史脚本名，例外）。
 - `src/` 与 `pyproject.toml` 里禁止重新引入 `playwright`。
 
 这两条与上面的删除动作同等重要，删了路径不等于删了引用。
 
 ### 凭据管理
 
-所有第三方凭据（微信公众号 AppSecret、Azure Speech Key、搜索 API Key）一律通过 AiPy 的 `user_config` 注入，代码中用 `os.environ.get()` / `process.env` 读取，**禁止硬编码静默回退**。`check.yml` 会扫描源码拦截硬编码凭据。
-
-### 为什么不分发内置 ffmpeg
-
-| 方案 | 问题 |
-|------|------|
-| 单包塞三平台 ffmpeg | 产物约 140 MB，超过 GitHub Release 单文件 100 MB 硬限制，push 直接被拒 |
-| 三平台各自出包 | 用户容易下错包，且维护三份 Release 附件与校验逻辑 |
-| 二进制入库 | 三平台原始二进制约 294 MB，`darwin-x64/ffprobe` 单文件约 79 MB，克隆成本不可接受 |
-
-最终采用**用户自行安装 + 插件自动查找**（Homebrew / winget 均为成熟方案），
-解析顺序为「环境变量 `FFMPEG_PATH` → PATH → 常见安装路径」，代码见 `server/lib/binaries.js`。
-`vendor/` 目录与查找逻辑保留，仅用于本地内置链路调试。
+所有第三方凭据（当前仅微信公众号 AppSecret）一律通过 AiPy 的 `user_config` 注入，Python 扩展中用 `os.environ.get()` 读取，**禁止硬编码静默回退**。`check.yml` 会扫描源码拦截硬编码凭据。
 
 ### 微信渲染兼容性
 

@@ -44,7 +44,11 @@ jobs:
       - name: 检查是否误提交了运行时数据
         run: |
           set -euo pipefail
-          if git ls-files | grep -E '\.venv/|__pycache__/|uv\.lock|\.pyc$'; then
+          # 只拦运行时数据：虚拟环境与字节码缓存。
+          # uv.lock 不在此列：它已纳入版本管理，属依赖声明而非运行时数据；starlette / uvicorn /
+          # sse-starlette 在 pyproject.toml 中均无上界约束，不锁定版本就无法保证解析结果可复现。
+          # （uv.lock 既入库也随 .dxt 分发，本就属于该进版本库的内容，不适用本门禁。）
+          if git ls-files | grep -E '\.venv/|__pycache__/|\.pyc$'; then
             echo "::error::版本库里混入了虚拟环境或缓存文件"
             exit 1
           fi
@@ -74,50 +78,6 @@ jobs:
           echo "OK: 无失效引用、无浏览器依赖回流"
 
   # ---------------------------------------------------------------
-  # 文档一键成片：ffmpeg 二进制不得入库
-  # ---------------------------------------------------------------
-  doc-video:
-    name: 校验 文档一键成片
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: JS 语法检查
-        run: |
-          set -euo pipefail
-          n=0
-          for f in $(find agents/doc-video/server -name '*.js'); do
-            node --check "$f"
-            n=$((n + 1))
-          done
-          echo "OK: 通过语法检查的文件数 $n"
-
-      - name: 确认 ffmpeg 二进制未入库
-        run: |
-          set -euo pipefail
-          # 二进制通过 scripts/fetch-ffmpeg.sh 获取，不应出现在版本库中
-          if git ls-files | grep -E 'vendor/.*/(ffmpeg|ffprobe)(\.exe)?(\.gz)?$'; then
-            echo "::error::ffmpeg 二进制被提交进了版本库（应改用 scripts/fetch-ffmpeg.sh 获取）"
-            exit 1
-          fi
-          echo "OK: 版本库无 ffmpeg 二进制"
-
-      - name: 校验 manifest 与 package.json 必需字段
-        working-directory: agents/doc-video
-        run: |
-          set -euo pipefail
-          node -e '
-            const m = require("./manifest.json");
-            const miss = ["dxt_version","name","version","server"].filter(k => !(k in m));
-            if (miss.length) { console.error("manifest.json 缺少字段: " + miss.join(",")); process.exit(1); }
-            console.log("OK: manifest.json 字段完整，version=" + m.version);
-          '
-
-  # ---------------------------------------------------------------
   # 仓库卫生：目录结构约定
   # ---------------------------------------------------------------
   hygiene:
@@ -135,8 +95,6 @@ jobs:
                    agents/wechat-publish/resources \
                    agents/wechat-publish/resources/references \
                    agents/wechat-publish/src/tools \
-                   agents/doc-video/server \
-                   agents/doc-video/vendor \
                    reference; do
             [ -d "$d" ] || { echo "::error::缺少必需目录 $d"; exit 1; }
           done
@@ -153,7 +111,7 @@ jobs:
           # 新版打包器读 .mcpbignore，旧版读 .dxtignore；两者混用会导致忽略规则失效。
           # 易混淆点说明（务必分清，这是两个不同层面的东西）：
           #   .mcpbignore —— 构建期规则文件，给 `mcpb pack` 读，决定哪些文件不进包；改名会直接把
-          #                  .venv / node_modules / vendor 打进产物，必须保持 .mcpbignore 不动。
+          #                  .venv / node_modules / __pycache__ 打进产物，必须保持 .mcpbignore 不动。
           #   .dxt       —— 产物文件后缀。AiPy Pro 只放行 .zip / .dxt，所以发版产物叫 xxx.dxt。
           # 名字长得像、用途完全不同：正因为产物改叫 .dxt，才更要拦住「顺手把 .mcpbignore 改成
           # .dxtignore」——新版打包器不认 .dxtignore，改名等于让全部忽略规则失效。
@@ -163,19 +121,6 @@ jobs:
           else
             echo "OK: 未发现遗留的 .dxtignore"
           fi
-
-      - name: 确认 ffmpeg 未随包分发
-        run: |
-          set -euo pipefail
-          IGNORE="agents/doc-video/.mcpbignore"
-          # 三平台 ffmpeg 约 126MB，打包后会超过 GitHub Release 单文件 100MB 上限，
-          # 因此发布包必须排除 /vendor/。误删这行会在 release.yml 的体积闸门才暴露，
-          # 这里提前拦截。
-          if ! grep -qE '^\s*/vendor/\s*$' "$IGNORE"; then
-            echo "::error::$IGNORE 缺少 /vendor/ 忽略规则，ffmpeg 会被打进包导致产物超限"
-            exit 1
-          fi
-          echo "OK: .mcpbignore 已排除 /vendor/"
 
       - name: 检查图标格式（打包器强制要求 PNG）
         run: |

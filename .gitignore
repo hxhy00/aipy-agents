@@ -1,6 +1,6 @@
 # ============================================================
 # AiPy 智能体仓库 — 根级忽略规则
-# 说明：本仓库为 monorepo，各子项目另有自己的 .gitignore，
+# 说明：各扩展目录（agents/*/）另有自己的 .gitignore，
 #      这里只放「跨项目的通用产物」与「仓库级敏感文件」。
 # ============================================================
 
@@ -34,7 +34,7 @@ package-lock.json.bak
 .pnpm-store/
 .yarn/cache
 .yarn/install-state.gz
-# 构建产物：由 bun run build 从 server/ 生成
+# 打包工具链的构建产物
 server.js
 bun.lockb
 *.tsbuildinfo
@@ -47,7 +47,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 .python-version.bak
-uv.lock
+# uv.lock 纳入版本管理，并随 .dxt 产物分发：本扩展由宿主以 `uv run` 启动（见 manifest.json），
+# 锁文件不入库则开发/CI 环境漂移，不进包则终端用户装包后首次 `uv run` 重新解析、同样漂移。
+# 背景：starlette / uvicorn / sse-starlette 均为无上界的传递依赖，已出现过版本漂移。
+# 入库与进包是一件事的两面：只有用户机器上也拿到同一份锁文件，依赖才真正可复现。
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -56,20 +59,7 @@ build/
 dist/
 .eggs/
 
-# ---------- ffmpeg 二进制（由 scripts/fetch-ffmpeg.sh 获取） ----------
-# 发布包不内置 ffmpeg，此处仅防止本地调试拉取的二进制被误提交。
-# 三平台全量约 126MB，且 darwin-x64 单文件已逼近 GitHub 的 100MB 限制。
-# 保留目录结构（.gitkeep），只忽略二进制本身。
-agents/doc-video/vendor/*/ffmpeg
-agents/doc-video/vendor/*/ffprobe
-agents/doc-video/vendor/*/ffmpeg.exe
-agents/doc-video/vendor/*/ffprobe.exe
-agents/doc-video/vendor/*/ffmpeg.exe.gz
-agents/doc-video/vendor/*/ffprobe.exe.gz
-
 # ---------- 运行时输出目录 ----------
-agents/doc-video/doc-video-output/
-agents/doc-video/industry-research-output/
 agents/*/output/
 agents/*/*-output/
 **/.aipy/

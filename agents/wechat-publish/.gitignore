@@ -1,5 +1,6 @@
 .venv
-uv.lock
+# uv.lock 纳入版本管理，并随 .dxt 产物分发（用户机器上也要靠它复现依赖解析），
+# 理由见仓库根 .gitignore 的同名说明。
 __pycache__/
 *.pyc
 # 扩展打包产物
