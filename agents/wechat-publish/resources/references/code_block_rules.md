@@ -22,14 +22,17 @@
 | B. 精简代码压到每行 ≤ 屏宽 | 可行 | 可行 | 可以 | ⚠️ 只适合极短示例，代码完整度差 |
 | C. **整块渲染成图片** | 像素级正确 | 像素级正确 | 不可以 | ✅ **默认方案** |
 
-## 方案 C 实施步骤（用 scripts/code_image.py）
+## 方案 C 实施步骤（用 render_code_images 工具）
 
-```bash
-# 依赖：pip install pygments pillow playwright && playwright install chromium
-python scripts/code_image.py /path/to/终稿.md /path/to/out_code --cols 52
+```
+render_code_images(
+  md_path="/path/to/终稿.md",
+  out_dir="/path/to/out_code",
+  cols=52
+)
 ```
 
-脚本按代码块出现顺序输出 `code-1.png`、`code-2.png`…，然后在 HTML 里按顺序引用：
+工具按代码块出现顺序输出 `code-1.png`、`code-2.png`…（返回的 `images[].path` 就是可直接引用的路径），然后在 HTML 里按顺序引用：
 
 ```html
 <p style="margin:0 0 20px;text-align:center;">
@@ -40,15 +43,15 @@ python scripts/code_image.py /path/to/终稿.md /path/to/out_code --cols 52
 
 发布时 `publish_draft` 会像普通图片一样自动 uploadimg 中转上传。
 
-### code_image.py 的三个关键设计（不要退化）
+### render_code_images 的三个关键设计（不要退化）
 
 1. **词法分析用 Pygments**，不要手写正则高亮（手写版会漏 token class，普通标识符 `.n` 被默认浅色主题盖成看不清）。
-2. **排版折行交给 Chromium**（Playwright 截图，`device_scale_factor=2` 保证视网膜屏清晰）。
-3. **源码层消灭超宽行**：渲染前把长逻辑行在括号边界/续行符处拆成物理行（脚本内置自动列宽探测，逐逻辑行测视觉行数，仍折行就放宽 `cols` 直到零折行）。**绝不允许** `word-break:break-all` 之类的 CSS 兜底。
+2. **出图用 Pygments 自带的 ImageFormatter + Pillow**，不引入无头浏览器：浏览器方案要用户本机额外下载数百 MB 运行时，离线或权限受限时常装不上，而代码图只是静态文本加高亮，Pillow 完全够用。出图字号默认 15、配色默认 `monokai`，需要时用 `font_size` / `style` 参数调整。
+3. **源码层消灭超宽行**：渲染前按 `cols`（默认 52，CJK 按 2 列计）把长逻辑行折成物理行，优先在空格处断开，其次在 `,;)]}>` 之后断开，续行加 4 空格缩进以示区分。若遇到长 URL、长 base64 这类完全无断点的片段，按显示列硬切并置 `truncated=true`，同时在 `warnings` 中提示你回 Markdown 源码把该行拆短后重新出图。**绝不允许** `word-break:break-all` 之类的 CSS 兜底。
 
 ## 保真核验的配合
 
-- `verify_fidelity.py` 的 `extra` 里若出现代码文本，属预期（源码进图片后 HTML 无对应文字）；但 `missing` 不应有正文段落。
+- 调用 `verify_fidelity` 工具时，若 `extra` 里出现代码文本，属预期（源码进图片后 HTML 无对应文字）；但 `missing` 不应有正文段落。
 - 正文里引用代码中的数字（如端口号 `9999`）造成的 `number_diff` 可人工确认后放行，需在交付说明中列出。
 
 ## 何时可以不用图片

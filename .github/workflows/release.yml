@@ -31,7 +31,8 @@ env:
 
 jobs:
   # ---------------------------------------------------------------
-  # 公众号发布套件（Python 工具型智能体 + 排版 skill 包）
+  # 公众号发布套件（Python 工具型智能体，排版知识库已合并进智能体的 resources/）
+  # 自 2.0.0 起只发一个 .mcpb：原独立排版 skill 已并入 resources/，不再单独出包
   # 无需构建步骤：Python 项目由宿主 uv 解析依赖，打包是纯 zip
   # ---------------------------------------------------------------
   wechat-publish:
@@ -49,7 +50,7 @@ jobs:
       - name: 版本一致性校验（tag 与 manifest 必须一致）
         # 手动触发时 GITHUB_REF_NAME 是分支名，无法比对，跳过校验
         if: github.event_name == 'push'
-        working-directory: agents/wechat-publish/publisher
+        working-directory: agents/wechat-publish
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#wechat-v}"
           MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
@@ -66,37 +67,70 @@ jobs:
 
       - name: 打包智能体
         run: |
-          cd agents/wechat-publish/publisher
+          cd agents/wechat-publish
           npx -y ${MCPB_CLI} pack . wechat-sop-publish-assistant.mcpb
 
       - name: 校验产物内容
         run: |
           set -euo pipefail
-          PKG="agents/wechat-publish/publisher/wechat-sop-publish-assistant.mcpb"
+          PKG="agents/wechat-publish/wechat-sop-publish-assistant.mcpb"
+          # 清单只解一次并复用：既省掉重复解压，也避免 set -o pipefail 下
+          # 「unzip -l | grep -q」因 grep 提前退出、反让 unzip 收到 SIGPIPE(141)
+          # 而把管道状态判成非 0、误报「缺少必需文件」
+          LIST=$(unzip -l "$PKG")
           echo "--- 产物清单 ---"
-          unzip -l "$PKG"
+          printf '%s\n' "$LIST"
           # 必需文件必须进包（icon 以 manifest.json 声明的为准）
           for f in manifest.json main.py pyproject.toml icon.png .python-version src/publisher.py src/wechat_compat.py; do
-            unzip -l "$PKG" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
+            printf '%s\n' "$LIST" | grep -q " $f\$" || { echo "::error::产物缺少必需文件 $f"; exit 1; }
           done
-          # 虚拟环境与缓存绝不能进包
-          if unzip -l "$PKG" | grep -qE "\.venv/|__pycache__/|\.pyc\$|uv\.lock"; then
+          # 虚拟环境与缓存绝不能进包（含 uv.lock）
+          if printf '%s\n' "$LIST" | grep -qE "\.venv/|__pycache__/|\.pyc\$|uv\.lock"; then
             echo "::error::产物夹带了虚拟环境或缓存文件"; exit 1
           fi
-          echo "OK: 产物校验通过"
 
-      - name: 打包排版 skill 包
-        run: |
-          cd agents/wechat-publish/skills
-          zip -r -q wechat-article-sop-layout.zip wechat-article-sop-layout
-          unzip -l wechat-article-sop-layout.zip | tail -3
+          # ---- 排版知识库 resources/ ----
+          # 2.0.0 起原独立排版 skill 已并入 resources/，它是本次合并的核心交付物：
+          # 丢了 resources/ 智能体仍能启动，但模型没有排版规则与素材，等于废了。
+          # SOP.md 是全流程规则入口，get_sop 工具直接读它，必须进包
+          printf '%s\n' "$LIST" | grep -q " resources/SOP\.md\$" \
+            || { echo "::error::产物缺少 resources/SOP.md（排版全流程规则入口，get_sop 依赖它）"; exit 1; }
+          # references（排版规范，现 10 篇）与 assets（视觉素材，现 19 个）设「下限」而非等值：
+          # 本闸门只防「知识库整体丢失 / 被 .mcpbignore 误放行」，以后新增规范或素材不必改这里
+          N_REF=$(printf '%s\n' "$LIST" | grep -cE " resources/references/[^/]+\.md\$" || true)
+          N_ASSET=$(printf '%s\n' "$LIST" | grep -cE " resources/assets/.+[^/]\$" || true)
+          echo "包内知识库：references=$N_REF 篇，assets=$N_ASSET 个"
+          if [ "$N_REF" -lt 10 ]; then
+            echo "::error::resources/references 只打进 $N_REF 篇（应至少 10 篇），排版规范丢失，请检查 .mcpbignore"
+            exit 1
+          fi
+          if [ "$N_ASSET" -lt 19 ]; then
+            echo "::error::resources/assets 只打进 $N_ASSET 个（应至少 19 个），视觉素材丢失，请检查 .mcpbignore"
+            exit 1
+          fi
+          # resources/ 之外不应再有 .md 知识文件（旧独立 skill 的排版规范等被误打进包）
+          # 例外：包根 README.md 是智能体自带的说明文档，属常规随包内容
+          STRAY_MD=$(printf '%s\n' "$LIST" | awk '{print $NF}' | grep -E '\.md$' | grep -v '^resources/' | grep -v '^README\.md$' || true)
+          if [ -n "$STRAY_MD" ]; then
+            echo "$STRAY_MD"
+            echo "::error::产物里 resources/ 之外混入了 .md 知识文件，请检查 .mcpbignore 是否放行了已删除的 skill 目录"
+            exit 1
+          fi
+
+          # 体积闸门：当前约 125KB（实测 128055 字节，不含 .mcpbignore 排除的 README.md），明显偏大说明打包规则失效
+          SIZE=$(stat -c%s "$PKG")
+          echo "产物体积：$((SIZE / 1024)) KB"
+          if [ "$SIZE" -ge 2097152 ]; then
+            echo "::error::产物 $((SIZE / 1024)) KB 异常偏大（上限 2MB，当前应 125KB 级），请检查 .mcpbignore 是否被改坏"
+            exit 1
+          fi
+          echo "OK: 产物校验通过"
 
       - uses: actions/upload-artifact@v4
         with:
           name: wechat-publish
           path: |
-            agents/wechat-publish/publisher/wechat-sop-publish-assistant.mcpb
-            agents/wechat-publish/skills/wechat-article-sop-layout.zip
+            agents/wechat-publish/wechat-sop-publish-assistant.mcpb
           if-no-files-found: error
 
   # ---------------------------------------------------------------
@@ -202,21 +236,19 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
-          # 按文件名匹配（download-artifact 会保留上传时的子目录层级，如 dist/wechat-publish/publisher/...）
-          # 打 wechat-v* 只产生 wechat 两个文件，doc-video 路径不匹配属预期，不要开 fail_on_unmatched_files
+          # 按文件名匹配（download-artifact 会保留上传时的子目录层级，如 dist/wechat-publish/wechat-sop-publish-assistant.mcpb）
+          # 打 wechat-v* 只产生 wechat 一个产物，doc-video 路径不匹配属预期，不要开 fail_on_unmatched_files
           files: |
             dist/**/wechat-sop-publish-assistant.mcpb
-            dist/**/wechat-article-sop-layout.zip
             dist/**/doc-video.mcpb
           body: |
             ## 安装方式
 
-            到 AiPy 客户端「集市 → 本地安装」选择对应的扩展包：
+            到 AiPy 客户端「集市 → 本地安装」选择扩展包：
 
             | 产物 | 类型 | 说明 |
             |------|------|------|
-            | `wechat-sop-publish-assistant.mcpb` | 智能体 | 公众号发布助手（解析终稿、写草稿箱、文字与兼容性校验） |
-            | `wechat-article-sop-layout.zip` | skill 包 | 公众号排版 SOP（排版规范、风格矩阵、预检脚本） |
+            | `wechat-sop-publish-assistant.mcpb` | 智能体 | 公众号文章从终稿到草稿箱全流程（含排版 SOP 知识库），装一个包即可 |
             | `doc-video.mcpb` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频） |
 
             > `doc-video.mcpb` 已不内置 ffmpeg（三平台全量约 126 MB，会超过 GitHub Release 单文件 100 MB 限制）。

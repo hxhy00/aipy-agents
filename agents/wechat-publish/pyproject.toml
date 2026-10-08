@@ -1,6 +1,6 @@
 [project]
 name = "wechat-sop-publish-assistant"
-version = "1.0.0"
+version = "2.0.0"
 description = "WeChat draft publisher extension for AiPy"
 requires-python = ">=3.12"
 dependencies = [
@@ -11,6 +11,11 @@ dependencies = [
     "beautifulsoup4>=4.12.0",
     "pyahocorasick>=2.3.1",
     "python-docx>=1.1.2",
+    # 2.0.0 起：代码块出图（render_code_images）需要 pygments 做词法分析与语法高亮，
+    # ImageFormatter 内部再用 Pillow 画 PNG。两者缺一不可，缺任一该工具会返回
+    # 「依赖未安装，请重新安装本智能体」，其余 12 个工具不受影响。
+    "pygments>=2.17.0,<3",
+    "Pillow>=10.3.0,<13",
 ]
 
 [[tool.uv.index]]

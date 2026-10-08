@@ -10,16 +10,16 @@
 │   ├── check.yml                 # 日常校验：语法、凭据泄露、目录约定
 │   └── release.yml               # 打 tag 时构建产物并发布 Release
 ├── agents/                       # 自研智能体
-│   ├── wechat-publish/           # 公众号发布套件
-│   │   ├── publisher/            #   智能体：解析终稿 → 写草稿箱（Python）
-│   │   ├── skills/
-│   │   │   └── wechat-article-sop-layout/   #   skill 包：排版 SOP
-│   │   ├── docs/                 #   需求与实现规划
-│   │   └── 需求/                 #   业务原始文档（本地保留，不入库）
+│   ├── wechat-publish/           # 公众号发布套件（Python，单智能体）
+│   │   ├── main.py               #   扩展入口：MCP 服务，13 个工具
+│   │   ├── src/                  #   解析 / 校验 / 发布逻辑，工具实现
+│   │   └── resources/            #   内置知识层：SOP + 排版规范 + 视觉素材，随包分发
 │   └── doc-video/                # 文档一键成片（Node.js）
 │       ├── server/               #   服务端源码
 │       ├── prompts/              #   注入 AiPy 的系统提示词
 │       └── vendor/               #   ffmpeg 目录（发布包不携带，仅供本地调试）
+├── docs/                         # 项目文档
+│   └── 实现规划.md               #   公众号发布套件实现规划
 ├── scripts/
 │   └── fetch-ffmpeg.sh           # 三平台 ffmpeg 获取脚本（本地与 CI 复用）
 └── reference/                    # 参考资料，不参与构建
@@ -32,11 +32,14 @@
 
 ## 两个自研智能体
 
+每个扩展打一个包，装一个包就能用。
+
 | 项目 | 类型 | 技术栈 | 产物 | 体积 |
 |------|------|--------|------|------|
-| `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP | `wechat-sop-publish-assistant.mcpb` | 约 60 KB |
-| `agents/wechat-publish` | skill 包 | Markdown + Python 脚本 | `wechat-article-sop-layout.zip` | 约 200 KB |
+| `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP + Pygments + Pillow | `wechat-sop-publish-assistant.mcpb` | 约 125 KB |
 | `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.mcpb` | 约 2 MB |
+
+> 公众号发布套件 2.0.0 起不再有独立的排版 skill 包：排版知识与预检能力已并入上面这一个 `.mcpb`，用户只装一个包。
 
 > `doc-video` 不再内置 ffmpeg。三平台全量约 126 MB，打包后超过 GitHub Release 单文件 100 MB 硬限制，
 > 改为要求用户自行安装（macOS：`brew install ffmpeg`；Windows：`winget install Gyan.FFmpeg`）。
@@ -47,11 +50,15 @@
 ### 公众号发布套件
 
 ```bash
-cd agents/wechat-publish/publisher
+cd agents/wechat-publish
 uv sync
 uv run main.py
 # 标准输出：{"type": "http_start", "port": 60155}
 ```
+
+排版知识库在 `resources/`，随包走，本地无需额外准备。13 个工具全部由本智能体提供，模型直接调用，不需要在终端跑任何脚本。
+
+`render_code_images`（代码块转图片）需要系统里有一款**带中文字形**的字体，macOS / Windows / 主流 Linux 发行版默认都有；若提示找不到字体，装一份思源黑体（Source Han Sans）即可。详见下文「代码块转图片为什么不用 Playwright」。
 
 ### 文档一键成片
 
@@ -92,18 +99,18 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 
 | 扩展 | tag 形式 | 触发 job |
 |------|----------|----------|
-| 公众号发布套件 | `wechat-v1.0.0` | `wechat-publish` |
+| 公众号发布套件 | `wechat-v2.0.0` | `wechat-publish` |
 | 文档一键成片 | `doc-video-v1.0.0` | `doc-video` |
 
 ```bash
 # 1. 改版本号（tag 去掉对应前缀后必须等于 manifest 里的 version，CI 会校验）
-#    公众号发布套件：agents/wechat-publish/publisher/manifest.json 的 version
+#    公众号发布套件：agents/wechat-publish/manifest.json 的 version
 #                    （同时需与同目录 pyproject.toml 的 version 一致）
 #    文档一键成片：  agents/doc-video/manifest.json 的 version
 
 # 2. 打 tag 并推送（只发哪个扩展就打哪个前缀的 tag）
-git tag wechat-v1.0.0
-git push origin wechat-v1.0.0
+git tag wechat-v2.0.0
+git push origin wechat-v2.0.0
 
 # 或发文档一键成片
 git tag doc-video-v1.0.0
@@ -114,8 +121,8 @@ git push origin doc-video-v1.0.0
 
 1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败；`wechat-publish` 还会校验 `pyproject.toml`）
 2. `doc-video`：安装依赖 → `bun run build` → 打包
-3. `wechat-publish`：打包智能体 + 压缩 skill 包
-4. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码 / ffmpeg 是否误入包、体积是否异常）
+3. `wechat-publish`：打包智能体（知识库随包走，不单独产出 zip）
+4. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码 / ffmpeg 是否误入包、失效引用是否写回文档、体积是否异常）
 5. 创建 GitHub Release 并上传本次构建的产物（`publish` job 只要至少一个扩展 job 成功即发布）
 
 也可以到 Actions 页面手动触发 `workflow_dispatch`（此时两个扩展 job 都会执行，版本一致性校验自动跳过）。
@@ -132,7 +139,7 @@ git push origin doc-video-v1.0.0
 
 两个实测确认的行为差异：
 
-- `pack <目录>` 省略输出参数时，产物文件名取自**目录名**而非扩展名（在 `publisher/` 下会得到 `publisher.mcpb`）。因此脚本与 CI 一律显式指定输出文件名。
+- `pack <目录>` 省略输出参数时，产物文件名取自**目录名**而非扩展名（在 `agents/wechat-publish/` 下会得到 `wechat-publish.mcpb`）。目录名与产物名不一致，因此脚本与 CI 一律显式指定输出文件名，保证产物固定为 `wechat-sop-publish-assistant.mcpb`。
 - 打包器硬校验 `manifest.icon` 指向的文件必须是 **PNG**（读文件头魔数），SVG 会直接导致打包失败。本仓库保留 SVG 作为设计源文件，另生成 `icon.png` 供打包使用，转换命令：
 
 ```bash
@@ -144,6 +151,59 @@ sips -s format png -Z 512 icon.svg --out icon.png
 ### 打包忽略文件
 
 统一使用 `.mcpbignore`（新版打包器的规则文件名）。若目录下同时存在 `.dxtignore`，新版可能不再识别，导致虚拟环境等文件被误打进包。
+
+公众号发布套件的忽略规则里有两条容易踩的：
+
+- `resources/` 下的 `.md` **必须保留**——那是模型直接读取的知识层，排除掉等于智能体没了排版能力。排除的是根级 `README.md`（开发说明，给维护者看的，不随包分发）。
+- 当前产物 51 个文件、约 125 KB，其中 `resources/` 占 31 个。体积闸门在 `release.yml`，知识库变大时会先被拦下。
+
+### 为什么排版 skill 被合并进智能体
+
+2.0.0 之前，公众号发布套件发两个 AiPy 扩展：一个智能体（`.mcpb`）+ 一个 skill（`.zip`，需单独安装）。现在合并为一个智能体。合并的理由不是「少发一个文件」，而是 AiPy 规范里 **skill 与智能体是两种并列的项目类型**：
+
+| | skill | 智能体 |
+|---|------|--------|
+| 模型怎么发现它 | 靠 `SKILL.md` 的 description 关键词被唤起 | 只把 MCP 工具暴露给模型 |
+| 脚本怎么执行 | 模型自己在终端敲命令 | 模型调用工具，由服务端执行 |
+
+把 skill 目录原样塞进 `.mcpb`，文件虽然在包里，但模型完全感知不到，`$skill名` 引用会失效——那是**静默丢功能**，不是合并。真正的合并是把 skill 的能力翻译成两层：
+
+- **知识层**：排版 SOP、10 篇排版规范、19 个视觉素材搬进 `resources/`，由 `get_sop` / `get_reference` / `get_asset` 三个工具按白名单读取（只允许按文件名取，不接受任意路径）。
+- **工具层**：原来的 7 个脚本拆成两类——5 个变成独立工具（`extract_template_style`、`verify_html`、`verify_fidelity`、`minify_inline_html`、`render_code_images`），另 2 个与工具层已有实现合并（`read_draft`、`check_wechat_compat`，见下文「两处重复实现的合并」）。
+
+加上原有的 5 个工具，共 13 个。
+
+破坏性变更：安装方式从「装两个包」变成「装一个包」，原独立的排版 skill zip 不再发布。
+
+### 代码块转图片为什么不用 Playwright
+
+原方案用 Playwright + Chromium 渲染代码块截图（约 150 MB），**装不进 `.mcpb`**。保留它等于用户装完包还要额外装浏览器，抵消了合并收益。改用 Pygments 自带的 `ImageFormatter` + Pillow，纯 Python 出图，实测中文注释能正常成像。
+
+代价是要自己解决字体：Menlo、Consolas、DejaVu Sans Mono、Courier New 这些常见等宽字体都没有中文字形，直接用会把中文注释渲染成空白——读者看到的是「注释消失了」。实现按平台解析中文字体路径的候选链（macOS 苹方/宋体、Windows 微软雅黑、Linux 思源黑体/文泉驿），逐个用 Pillow 实际加载探测（只看文件存在会踩 Pillow 对部分字体集合支持有限的坑），macOS 实测命中 `Songti.ttc`。
+
+一个候选都探不到时不静默出图：退回纯 ASCII 等宽字体并在结果里明确告知「中文注释会显示为空白」，同时建议安装思源黑体 / Noto Sans CJK。
+
+依赖因此新增 `pygments>=2.17.0,<3` 与 `Pillow>=10.3.0,<13`；原先 `python-docx` 是运行时现场安装，现已改为正式依赖。缺任一依赖时只影响对应工具，其余照常可用。
+
+### 两处重复实现的合并
+
+合并前有两组「同一个功能两份实现」：
+
+| 功能 | 原来的两份 | 统一后 |
+|------|-----------|--------|
+| 读终稿 | skill 的 `read_draft.py` 与 `src/parser.py`（重复约 80%） | `src/parser.py` |
+| 微信兼容性校验 | `verify_wechat_compat.py` 与 `src/wechat_compat.py` | `src/wechat_compat.py`，规则集取 skill 侧更全的那份 |
+
+规则集取全的那份带来两处加强：禁用标签 9 个 → 10 个（补 `audio`），违规定位带上行号；另新增 5 类检查（`nowrap` 无配套 `overflow`、`<pre>` 文本代码块、`word-break:break-all`、重复内联样式、overflow 横向滚动），阻断类 error 从 7 类增至 12 类。
+
+### 防回归守卫
+
+合并最大的失败模式是「文档里写回已删除的路径，然后模型去执行不存在的脚本」。`check.yml` 加了 grep 守卫拦住它：
+
+- `resources/` 与 `manifest.json` 是模型直接读取的内容，禁止重新出现已删除的 skill 目录名或 `scripts/` 路径（`resources/evals/` 是评测基线，允许记录历史脚本名，例外）。
+- `src/` 与 `pyproject.toml` 里禁止重新引入 `playwright`。
+
+这两条与上面的删除动作同等重要，删了路径不等于删了引用。
 
 ### 凭据管理
 
@@ -163,12 +223,12 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 ### 微信渲染兼容性
 
-微信公众号草稿 API 会**静默剥离** `<style>` 标签与 `class` 属性（不报错、不提示），导致草稿箱里只剩纯文字。因此所有样式必须内联为 `style` 属性。该约束在三处强制拦截：skill 的 `verify_wechat_compat.py`、智能体 `publish_draft` 服务端校验、独立的 `check_wechat_compat` 工具。
+微信公众号草稿 API 会**静默剥离** `<style>` 标签与 `class` 属性（不报错、不提示），导致草稿箱里只剩纯文字。因此所有样式必须内联为 `style` 属性。该约束由智能体在两处强制拦截：`publish_draft` 的服务端硬校验（`src/wechat_compat.py`），以及发布前可主动调用的自检工具 `check_wechat_compat`。合并后二者共用同一份规则集，不再各维护一套。
 
 ## 参考文档
 
 - [AiPy 智能体开发规范 V3.0](reference/AiPy智能体开发规范-V3.0.md)
-- [公众号发布套件实现规划](agents/wechat-publish/docs/实现规划.md)
+- [公众号发布套件实现规划](docs/实现规划.md)
 
 ## 注意
 

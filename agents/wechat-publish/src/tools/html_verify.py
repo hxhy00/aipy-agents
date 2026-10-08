@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
-"""排版产物发布前预检（全流程 SOP 第 4 步之前的确定性检查）。
+"""排版产物发布前预检（在调用 publish_draft 之前先把「一定会失败」的问题查出来）。
 
-用途：
-    在调用智能体 `publish_draft` 之前，先本地把这些「一定会导致发布失败」的问题查出来。
-    这些问题如果不预检，会在发布时才由微信 API 报错，浪费一轮往返。
+为什么需要这一步：
+    这些问题如果不预检，会在发布时才由微信 API 报错，白白浪费一轮往返
+    （图片上传、封面上传、草稿写入都是不可逆的外部调用）。
 
 检查项：
     1. HTML 文件存在且为 UTF-8
@@ -14,18 +13,17 @@
     6. 标题/摘要/作者字数符合微信限制
     7. 正文体积 ≤ 2 万字符且 < 1MB
 
-用法：
-    python scripts/verify_html.py <html路径> [--title "标题"] [--digest "摘要"] [--author "作者"]
+模块名说明：
+    函数叫 verify_html，模块名刻意避开同名（html_verify），
+    避免与包内其他命名混淆，也避免和「校验微信兼容性」的职责混淆——
+    本模块只管「发布会不会失败」，不管「渲染会不会变形」。
 
-退出码：0 = 全部通过；1 = 存在阻断问题
+依赖：仅标准库。
 """
 
 from __future__ import annotations
 
-import argparse
-import json
 import re
-import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -39,24 +37,38 @@ MMBIZ_HOST = "mmbiz.qpic.cn"
 _IMG_SRC_RE = re.compile(r'<img[^>]*\ssrc\s*=\s*["\']([^"\']*)["\']', re.IGNORECASE)
 
 
-def verify(html_path: str, title: str, digest: str, author: str) -> dict:
+def verify_html(html_path: str, title: str = "", digest: str = "", author: str = "") -> dict:
+    """预检公众号 HTML，返回 {ok, errors, warnings, stats}。
+
+    ok=False 表示存在阻断问题，**必须先修复再调用 publish_draft**。
+    """
     errors: list[str] = []
     warnings: list[str] = []
 
     p = Path(html_path).expanduser()
     if not p.is_file():
-        return {"ok": False, "errors": [f"HTML 文件不存在：{html_path}"], "warnings": []}
+        return {
+            "ok": False,
+            "errors": [f"HTML 文件不存在：{html_path}"],
+            "warnings": [],
+            "stats": {},
+        }
 
     try:
         html = p.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        return {"ok": False, "errors": ["HTML 不是 UTF-8 编码，请另存为 UTF-8 后重试"], "warnings": []}
+        return {
+            "ok": False,
+            "errors": ["HTML 不是 UTF-8 编码，请另存为 UTF-8 后重试"],
+            "warnings": [],
+            "stats": {},
+        }
 
     # 1. 转义残留
     if re.search(r"\\u[0-9a-fA-F]{4}", html):
         errors.append(
             "HTML 中存在 \\uXXXX 形式的未解码转义序列（中文被转义），"
-            "请确保排版脚本以 ensure_ascii=False 输出 UTF-8 中文。"
+            "请确保排版产物以 ensure_ascii=False 输出 UTF-8 中文。"
         )
 
     # 2. 图片检查
@@ -123,20 +135,3 @@ def verify(html_path: str, title: str, digest: str, author: str) -> dict:
             "images_external": len(external_imgs),
         },
     }
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser(description="公众号 HTML 发布前预检")
-    ap.add_argument("html_path", help="待发布的 HTML 文件路径")
-    ap.add_argument("--title", default="", help="文章标题（用于长度校验）")
-    ap.add_argument("--digest", default="", help="文章摘要（用于长度校验）")
-    ap.add_argument("--author", default="", help="作者名（用于长度校验）")
-    args = ap.parse_args()
-
-    result = verify(args.html_path, args.title, args.digest, args.author)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result["ok"] else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

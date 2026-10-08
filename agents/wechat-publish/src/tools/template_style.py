@@ -1,32 +1,25 @@
-#!/usr/bin/env python3
-"""模板路径抽取脚本：把用户当次提供的「模板路径」抽成结构化设计参数。
+"""模板路径抽取：把用户当次提供的「模板路径」抽成结构化设计参数。
 
-全流程 SOP 的第 2 步（确定性环节）。本 skill **不内置模板**：
-模板只能由用户通过路径提供，本脚本只做「抽取」，不做「套用」。
-
-用法：
-    python scripts/read_template.py <模板路径> [<模板路径2> ...] [--json]
+对应全流程 SOP 的第 2 步（确定性环节）。本模块**不内置模板**：
+模板只能由用户通过路径提供，这里只做「抽取」，不做「套用」。
 
 支持的路径：
     - 单个文件或目录（目录会递归扫描，跳过隐藏目录与 node_modules）
-    - .html/.htm  ：抽取内联样式、配色、字号、标题骨架、卡片/分割线特征
-    - .md/.txt    ：抽取标题骨架与文字排版线索
-    - .json       ：按配色/参数类 JSON 抽取色值与数值
-    - .png/.jpg/.jpeg/.webp ：记录为图片类模板（需 AI 读图提炼，脚本只登记）
+    - .html/.htm          ：抽取内联样式、配色、字号、标题骨架、卡片/分割线特征
+    - .md/.txt            ：抽取标题骨架与文字排版线索
+    - .json               ：按配色/参数类 JSON 抽取色值与数值
+    - .png/.jpg/.jpeg/.webp：记录为图片类模板（需 AI 读图提炼，这里只登记）
 
-输出：
-    stdout 打印 JSON（ok / templates / merged / errors / warnings）
-    --json 时忽略，始终输出 JSON。
+输出结构（ok / templates / merged / errors / warnings / next_step）：
+    抽不到任何有效特征时返回 ok=false + fallback，**不臆造模板特征填充**。
 
 依赖：仅标准库。图片类模板由 AI 读图完成抽取。
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
-import sys
 from collections import Counter
 from pathlib import Path
 
@@ -51,6 +44,10 @@ _STYLE_BLOCK_RE = re.compile(r"<style[^>]*>(.*?)</style>", re.IGNORECASE | re.DO
 _MD_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 _HTML_HEADING_RE = re.compile(r"<h([1-6])[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
 _TEXT_RE = re.compile(r"<[^>]+>")
+
+# 引导文案统一指向 MCP 工具，不留任何裸文件路径或已废弃的脚本调用方式。
+_STYLE_MATRIX_HINT = '请调用 get_reference(name="style_matrix") 按主题选风格'
+_STYLE_LEARNING_HINT = '请调用 get_reference(name="style_learning_rules") 按其中的原创化融合规则产出方案'
 
 
 def _norm_hex(value: str) -> str:
@@ -228,19 +225,22 @@ def _merge(templates: list[dict]) -> dict:
     }
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(
-        description="模板路径抽取：用户提供的模板 → 结构化设计参数（不内置模板）"
-    )
-    ap.add_argument("paths", nargs="+", help="模板路径（文件或目录，可多个）")
-    ap.add_argument("--json", action="store_true", help="以 JSON 输出（默认也是 JSON）")
-    args = ap.parse_args()
+def extract_template_style(paths: list[str]) -> dict:
+    """从用户提供的模板路径抽取结构化设计参数。
 
+    参数：
+        paths: 模板路径列表，可为文件或目录（目录会递归扫描）。
+
+    返回：
+        ok=True  时含 templates / merged / errors / warnings / next_step；
+        ok=False 时含 error / errors / warnings / fallback，
+                  fallback 指向调用方下一步该调用的工具，而不是文件路径。
+    """
     templates: list[dict] = []
     errors: list[str] = []
     warnings: list[str] = []
 
-    for raw_path in args.paths:
+    for raw_path in paths or []:
         target = Path(raw_path).expanduser()
         try:
             files = _iter_files(target)
@@ -257,33 +257,29 @@ def main() -> int:
                 errors.append(f"{f} → {type(e).__name__}: {e}")
 
     if not templates:
-        payload = {
+        return {
             "ok": False,
             "error": "未能从给定路径抽取到任何模板特征；请检查路径或文件格式",
             "errors": errors,
             "warnings": warnings,
-            "fallback": "references/style_matrix.md",
+            "fallback": (
+                f"未提供模板路径，或模板路径无效：{_STYLE_MATRIX_HINT}，"
+                "不要臆造模板特征。"
+            ),
         }
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
-        return 1
 
     if any(t.get("kind") == "image" for t in templates):
         warnings.append("包含图片类模板，需由 AI 读图完成配色与版式提炼后再融合。")
 
-    payload = {
+    return {
         "ok": True,
         "templates": templates,
         "merged": _merge(templates),
         "errors": errors,
         "warnings": warnings,
         "next_step": (
-            "按 references/style_learning_rules.md 做原创化融合：保留 2–3 个抽象原则，"
-            "至少改变两项（标题骨架/导航方式/卡片形态/分割线/图片框/留白节奏/强调方式）。"
+            f"{_STYLE_LEARNING_HINT}：保留 2–3 个抽象原则，"
+            "至少改变两项（标题骨架/导航方式/卡片形态/分割线/图片框/留白节奏/强调方式），"
+            "产出「气质相通但明显是新设计」的方案。"
         ),
     }
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

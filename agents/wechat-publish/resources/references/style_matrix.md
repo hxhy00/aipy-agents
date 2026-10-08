@@ -28,7 +28,7 @@
 - `accent`：小面积高光、节点或 CTA。
 - `line`：边框和分割线。
 
-彩色相通常不超过 2 个。主色用于统一，强调色面积控制在约 10% 以内。不要默认使用蓝色；优先从 `assets/color_palettes/palettes.json` 选取并按品牌色调整。
+彩色相通常不超过 2 个。主色用于统一，强调色面积控制在约 10% 以内。不要默认使用蓝色；优先调用 `get_asset(category="color_palettes", name="palettes.json")` 取得角色化配色数据后按品牌色调整。
 
 ## 3. 标题系统
 

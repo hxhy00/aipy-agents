@@ -1,0 +1,82 @@
+{
+  "dxt_version": "0.1",
+  "name": "@aipy-enterprise/wechat-sop-publish-assistant",
+  "display_name": "公众号SOP发布助手",
+  "version": "2.0.0",
+  "description": "公众号文章视觉设计与发布的一体化智能体：按 Word/Markdown/TXT 终稿做公众号排版与公众号美化，产出移动端优先、样式全部内联的公众号HTML（正文保真 100%、主标题不进正文、每个一级标题下生成二级标题导航、至少 6 类微信安全视觉元素），并支持公众号视觉设计、公众号模板或风格学习（从用户提供的模板路径/截图/案例目录抽取设计语言后原创化融合，无模板时按风格矩阵推导）。同时提供三重发布前预检（发布可行性、微信渲染兼容性、内容保真反向核验）、正文超限时内联样式无损压缩、代码块渲染为微信安全图片、文字层校验（标点规范/品牌名/敏感词），最后把排版好的 HTML 导入微信公众号草稿箱（图片中转上传、封面上传、写入草稿）。仅写草稿箱，不做正式群发。适用于公众号文章SOP、公众号排版、公众号美化、公众号视觉设计、生成公众号HTML、Word转公众号、企业宣传推文、活动推文、产品发布、公众号模板或风格学习，以及终稿到草稿箱全流程、docx转公众号、文章解析与发布、从Word到公众号草稿箱。",
+  "author": {
+    "name": "AiPy Team"
+  },
+  "icon": "icon.png",
+  "server": {
+    "type": "python",
+    "entry_point": "main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "${__dirname}/main.py"
+      ],
+      "env": {
+        "WECHAT_APPID": "${user_config.appid}",
+        "WECHAT_APPSECRET": "${user_config.appsecret}",
+        "SENSITIVE_WORDLIST": "${user_config.wordlist}"
+      }
+    }
+  },
+  "user_config": {
+    "appid": {
+      "type": "string",
+      "title": "公众号 AppID",
+      "description": "微信公众号的 AppID（公众平台-设置与开发-基本配置）",
+      "required": true
+    },
+    "appsecret": {
+      "type": "string",
+      "title": "公众号 AppSecret",
+      "description": "微信公众号的 AppSecret（需已认证账号，且本机出口IP已加入后台IP白名单）",
+      "required": true
+    },
+    "wordlist": {
+      "type": "string",
+      "title": "自定义敏感词库路径（可选）",
+      "description": "一行一个词的 txt 文件本地路径。留空时仅使用内置词库（广告法极限词/医疗功效/金融承诺/导流词）。",
+      "required": false,
+      "default": ""
+    }
+  },
+  "prompts": [
+    {
+      "name": "发布到草稿箱",
+      "text": "我刚排版好了一篇公众号文章，请先把发布前的三重预检跑一遍，全部通过后再用 publish_draft 工具把它导入公众号草稿箱：\n1. 用 verify_html 预检（体积/图片/字段），把标题、摘要、作者一并传入做字数校验\n2. 用 check_wechat_compat 检查微信渲染兼容性（确认样式全部内联，没有会被微信剥离的写法）\n3. 三项都 ok=true 后，用 publish_draft 写入草稿箱（服务端会再强制校验一次兼容性）\n\n- HTML 路径：/path/to/排版.html\n- 标题：（请输入，≤32字）\n- 封面路径：/path/to/cover.jpg\n- 摘要：（可选，≤120字）\n- 作者：（可选，≤16字）"
+    },
+    {
+      "name": "文字校验",
+      "text": "请使用 check_text 工具对这篇文章做文字层校验，输出标点规范、品牌名（AiPY）、敏感词问题报告：\n- HTML 路径：/path/to/排版.html"
+    },
+    {
+      "name": "微信渲染兼容性自检",
+      "text": "排版已经做完了，但我不确定能不能在手机上正常显示。请用 check_wechat_compat 检查这个排版 HTML 会不会被微信正确渲染（确认样式全部内联、没有 <style>/class/伪元素/position:fixed/CSS 变量等会被微信剥离的写法），把每一处问题定位到具体写法并告诉我怎么改成内联：\n- HTML 路径：/path/to/排版.html"
+    },
+    {
+      "name": "终稿 → 排版 → 草稿箱（全流程）",
+      "text": "请完成一篇公众号文章从终稿到草稿箱的全流程。**开始前先调用 get_sop（不带参数）拿全流程规则**，按里面的步骤执行，缺规则不要凭经验猜。\n\n1. 调用 read_draft 解析终稿，拿到 Markdown 正文、主标题和图片路径\n2. 选风格并生成 HTML：下面「模板路径」非空时，先用 extract_template_style 抽取该模板的设计语言，再读 get_reference(name=\"style_learning_rules\") 按原创化融合规则产出方案；为空时读 get_reference(name=\"style_matrix\") 按主题选风格。生成前读取 get_reference(name=\"content_fidelity_rules\")、get_reference(name=\"image_preservation_rules\")、get_reference(name=\"title_navigation_rules\")、get_reference(name=\"design_principles\")、get_reference(name=\"wechat_layout_rules\")、get_reference(name=\"visual_elements_library\")，并用 get_asset 取用适合本篇的视觉片段。硬性要求：正文保真 100%、主标题不进正文、每个含二级标题的一级标题下生成二级标题导航、至少使用 6 类视觉元素；图片必须用本地路径，禁止 base64 和外链；样式必须全部内联，禁止 <style>/class/<script>/伪元素/CSS 变量\n3. 文章里有代码块时，先用 render_code_images 把代码块渲染成图片再插入正文（微信会破坏文字代码块）\n4. 依次跑三重预检，必须按顺序：verify_html（体积/图片/字段）→ check_wechat_compat（渲染兼容性）→ verify_fidelity（内容保真，source 传终稿路径）；正文超限时用 minify_inline_html 无损压缩；修完所有 errors 再继续\n5. 我确认后，用 publish_draft 写入公众号草稿箱（服务端会再强制校验一次兼容性）\n\n每一步的真实产物（文件路径、工具返回）都要展示给我，不要只说「已完成」。\n\n终稿路径：/path/to/终稿.docx\n模板路径：/path/to/参考模板.html（选填，也可以是截图/案例目录）\n封面路径：/path/to/cover.jpg"
+    },
+    {
+      "name": "按模板风格排版",
+      "text": "我有一份参考排版，想让文章按这个风格来做（只学设计语言，不要照抄版式）：\n\n1. 调用 get_sop 了解全流程规则，然后用 extract_template_style 传入下面的模板路径（可传多个，也可以是目录），看它抽出的配色、字号、行高、圆角、阴影、标题骨架和卡片/分割线特征\n2. 读 get_reference(name=\"style_learning_rules\")，按里面的原创化/融合规则产出方案：保留 2–3 个抽象原则，至少改变两项（标题骨架/导航方式/卡片形态/分割线/图片框/留白节奏/强调方式），做到气质相通但明显是新设计\n3. 图片类模板需要你读图提炼配色与版式；抽取结果里 ok=false 时不要臆造模板特征，改用 get_reference(name=\"style_matrix\") 按主题选风格\n4. 再按 get_sop 的工作流程生成公众号 HTML，样式全部内联，最后跑 verify_html → check_wechat_compat → verify_fidelity 三重预检\n\n模板路径：/path/to/参考模板.html（也可以是截图或案例目录）\n终稿路径：/path/to/终稿.md"
+    },
+    {
+      "name": "文章里有代码块",
+      "text": "这篇文章里有代码块，我知道文字代码块在微信公众号里会被压坏。请：\n\n1. 先用 read_draft 把终稿解析成 Markdown（若已是 .md 就直接用），再用 render_code_images 把每个围栏代码块渲染成 PNG（cols 默认 52 即可，手机竖屏宽度；确实很宽再调大）\n2. 出图后**一定要看返回的 warnings**：如果提示字体没有中文字形，代码里的中文注释会显示为空白，此时应提示用户安装思源黑体/Noto Sans CJK 或把注释改英文；如果提示某行被强制切断，那行代码对读者是不完整的，需要回到源码把长 URL、长 base64 拆短再重出图\n3. 把返回的 path 当作本地图片插入排版产物，注意正文里不要再保留原文字代码块\n\n终稿路径：/path/to/终稿.md\n输出目录：/path/to/images/code"
+    },
+    {
+      "name": "只要排版规则，不要排版",
+      "text": "我先不排版，只想看清你这套公众号排版的规则和素材都有哪些。请：\n\n1. 调 get_sop（不带参数）给出全流程，再用 get_sop(section=...) 分别取「工作流程」「硬规则」「输出顺序」「资产使用」这几段\n2. 列出全部可用的排版规范（先调一次 get_reference 传一个不存在的名字，返回值里会带全部可用文件名），说明每篇分别在什么时候读\n3. 列出全部素材类目（调 get_asset 传一个不存在的类目，返回值里会带全部可用类目），并对每个类目调一次 get_asset（不给 name）拿到文件清单\n\n不要生成 HTML，也不要动任何文件，只做知识梳理。"
+    }
+  ],
+  "keywords": [
+    "conversation-tool",
+    "内容运营"
+  ]
+}

@@ -3,16 +3,21 @@
 为什么需要这一步：
     排版的输入是「带标题层级的结构化文本」，而 .docx 本质是 zip 压缩包，
     AI 无法直接读取。本模块把终稿解析成 Markdown（标题用 #/## 表达层级、
-    图片抽取为 ![](文件名) 引用），交给 skill 做章节导航与视觉排版。
+    图片抽取为 ![](文件名) 引用），交给排版环节做章节导航与视觉排版。
 
 实现选型：
     - .docx 使用成熟库 python-docx 解析（标题层级 / 段落 / 内嵌图片）；
     - .md / .txt 为纯文本，直接读取并做轻量规整。
 
-输出约定（与 wechat-article-sop-layout skill 的输入要求对齐）：
+输出约定（与排版环节的输入要求对齐）：
     - 一级标题 -> "## "（正文里不出现文章主标题，主标题由 publish_draft 的 title 承载）
     - Word 的 Heading 1 -> Markdown 一级标题（"# "），Heading 2/3 -> 对应 ""##"/"###"" 层级
     - 内嵌图片抽取到同级 images/ 目录，正文以 ![](images/文件名) 引用
+
+两种消费方式：
+    - 直接把 markdown 字段回给模型（parse_document 默认行为）；
+    - 需要落盘给其他工具接着处理时，用 dump_markdown=True 额外写出
+      <stem>.parsed.md，返回值里的 markdown_file 字段给出绝对路径。
 """
 
 from __future__ import annotations
@@ -33,8 +38,9 @@ class ParseResult:
     source_type: str                       # docx / markdown / text
     title: str = ""                        # 从文档中推断出的文章主标题（首个 Heading1 或首个非空行）
     heading_count: int = 0                 # 标题总数（用于自检层级是否被识别）
-    image_paths: list[str] = field(default_factory=list)  # 抽取出的图片绝对路径
+    image_paths: list[str] = field(default_factory=list)  # 抽取/收集到的图片绝对路径
     warnings: list[str] = field(default_factory=list)
+    markdown_file: str = ""                # 落盘时的 <stem>.parsed.md 绝对路径（未落盘则为空）
 
     def summary(self) -> str:
         lines = [
@@ -46,6 +52,8 @@ class ParseResult:
         if self.image_paths:
             lines.append("- 图片文件：")
             lines.extend(f"    {p}" for p in self.image_paths)
+        if self.markdown_file:
+            lines.append(f"- Markdown 已落盘：{self.markdown_file}")
         if self.warnings:
             lines.append("- 提示：")
             lines.extend(f"    {w}" for w in self.warnings)
@@ -187,6 +195,12 @@ def parse_docx(docx_path: Path) -> ParseResult:
 
 # ---------- md / txt 解析 ----------
 
+# Markdown 里的本地图片引用 ![alt](path)
+_MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
+# 不是本地文件的引用（外链 / base64），排版时微信会过滤掉，不计入 image_paths
+_REMOTE_IMAGE_PREFIXES = ("http://", "https://", "data:")
+
+
 def parse_markdown(md_path: Path) -> ParseResult:
     """读取 Markdown/TXT，做轻量规整。"""
     result = ParseResult(markdown="", source_type="markdown")
@@ -208,22 +222,67 @@ def parse_markdown(md_path: Path) -> ParseResult:
             result.warnings.append(
                 "文档未使用 Markdown 标题（# / ##），章节导航会缺失；建议为标题行加 # 前缀。"
             )
+
+    # 收集 md 中引用的本地图片（相对当前文件所在目录），并标出缺失的文件
+    local_refs = [
+        m.strip()
+        for m in _MD_IMAGE_RE.findall(raw)
+        if not m.strip().startswith(_REMOTE_IMAGE_PREFIXES)
+    ]
+    missing: list[str] = []
+    for ref in local_refs:
+        candidate = Path(ref)
+        if not candidate.is_absolute():
+            candidate = (md_path.parent / ref).resolve()
+        result.image_paths.append(str(candidate))
+        if not candidate.is_file():
+            missing.append(ref)
+    if missing:
+        result.warnings.append(
+            f"以下图片引用在本地不存在（{len(missing)} 张）：{'；'.join(missing[:5])}。"
+            "发布时会导致图片空白，请先补齐或移除引用。"
+        )
+    remote = len(_MD_IMAGE_RE.findall(raw)) - len(local_refs)
+    if remote > 0:
+        result.warnings.append(
+            f"文档中有 {remote} 处外链/base64 图片引用：微信会过滤为空白，"
+            "请下载到本地并改为本地路径引用。"
+        )
+
     result.markdown = raw
     return result
 
 
 # ---------- 统一入口 ----------
 
-def parse_document(path: str) -> ParseResult:
-    """按扩展名分派解析。支持 .docx / .md / .markdown / .txt。"""
+def parse_document(path: str, dump_markdown: bool = False, out_dir: str = "") -> ParseResult:
+    """按扩展名分派解析。支持 .docx / .md / .markdown / .txt。
+
+    参数：
+        path:          终稿文件路径
+        dump_markdown: 是否把解析结果落盘为 <stem>.parsed.md（默认 False）
+        out_dir:       落盘目录，默认与终稿同目录
+
+    返回的 ParseResult.markdown_file 在落盘时给出绝对路径。
+    """
     p = Path(path).expanduser()
     if not p.is_file():
         raise FileNotFoundError(f"文件不存在：{path}")
     suffix = p.suffix.lower()
     if suffix == ".docx":
-        return parse_docx(p)
-    if suffix in (".md", ".markdown", ".txt"):
-        return parse_markdown(p)
-    if suffix == ".doc":
+        result = parse_docx(p)
+    elif suffix in (".md", ".markdown", ".txt"):
+        result = parse_markdown(p)
+    elif suffix == ".doc":
         raise ValueError("暂不支持旧版 .doc 格式，请在 Word 中另存为 .docx 后重试。")
-    raise ValueError(f"不支持的格式：{suffix}（支持 .docx / .md / .txt）")
+    else:
+        raise ValueError(f"不支持的格式：{suffix}（支持 .docx / .md / .txt）")
+
+    if dump_markdown:
+        target_dir = Path(out_dir).expanduser() if out_dir else p.parent
+        target_dir.mkdir(parents=True, exist_ok=True)
+        md_file = target_dir / (p.stem + ".parsed.md")
+        md_file.write_text(result.markdown, encoding="utf-8")
+        result.markdown_file = str(md_file.resolve())
+
+    return result

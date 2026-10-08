@@ -1,6 +1,6 @@
 # 视觉元素库
 
-从下列元素中选择至少 6 类，并根据内容组合。优先复用 `assets/` 中的原创片段，再替换为本篇色值和原文。
+从下列元素中选择至少 6 类，并根据内容组合。优先复用 `get_asset` 工具取回的原创片段（如 `get_asset(category="card_patterns", ...)`、`get_asset(category="dividers", ...)`、`get_asset(category="icons", ...)`、`get_asset(category="style_examples", ...)`），再替换为本篇色值和原文。
 
 ## 1. 标题
 

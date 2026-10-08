@@ -14,3 +14,5 @@ _skill_extract/
 *.mcpb
 *.dxt
 icon.svg
+# 开发说明文档：只给维护者看，不随包分发（resources/ 下的 .md 是知识层，必须保留）
+README.md

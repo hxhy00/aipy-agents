@@ -1,43 +1,35 @@
-#!/usr/bin/env python3
 """内联样式 HTML 无损压缩（微信公众号正文体积优化）。
 
-为什么需要这个脚本：
+为什么需要这一步：
     微信正文硬限制是 2 万字符 / 1MB。公众号排版的视觉丰富度主要靠内联样式堆出来，
     很容易超限。人工「挤牙膏」压体积既慢又容易压错方向——把样式挪进 <style>/class
     虽然能过预检，但微信会剥离，导致草稿箱格式全丢（这是真实踩过的坑）。
 
-本脚本的原则：
+本模块的原则：
     **只做视觉等价的字符级压缩，绝不引入 <style> / class，绝不改变渲染结果。**
 
 压缩手段（全部无损）：
     1. CSS 声明级压缩：去分号前后空格、去属性与值之间多余空格、去末尾分号、
        颜色 #ffffff → #fff、0px → 0、0.5 → .5
-    2. 合并重复的内联样式串：多个标签的 style 值相同时，只保留一份文本
-       （不是提取成 class！是让相同串共用同一段源码文本，渲染完全不变）
-    3. HTML 结构空白压缩：标签间换行/缩进折叠，正文文字内的空白不动
-    4. 去掉 HTML 注释（不含条件注释）
+    2. HTML 结构空白压缩：标签间换行/缩进折叠，正文文字内的空白不动
+    3. 去掉 HTML 注释（不含条件注释）
 
 安全边界：
-    - 不触碰 <pre> / <code> 内容
+    - 不触碰 <pre> / <code> / <textarea> 内容
     - 不压缩文字节点内部的空白
     - 不改变标签顺序、不删除任何标签
-    - 压缩后用 verify_wechat_compat.py 复查，确保没有引入 style/class
+    - 压缩后建议再跑一次微信兼容性校验，确保没有引入 style/class
 
-用法：
-    python scripts/minify_inline_html.py <输入HTML> [-o <输出HTML>]
-    # 不带 -o 时输出到 <输入HTML>.min.html，并打印字符数对比
-
-依赖：无（纯标准库，保证在 AiPy 环境下零安装成本）
+依赖：无（纯标准库）。
 """
 
 from __future__ import annotations
 
-import argparse
-import html as html_mod
-import json
 import re
-import sys
 from pathlib import Path
+
+# 微信正文硬限制
+WECHAT_CONTENT_CHARS = 20000
 
 # 不参与空白压缩的标签（内容可能对空白敏感）
 PRE_TAGS = ("pre", "code", "textarea")
@@ -105,45 +97,52 @@ def minify_html(html: str) -> str:
     return "".join(out)
 
 
-def report(src_chars: int, out_chars: int, styles: int, unique_styles: int) -> dict:
-    saved = src_chars - out_chars
-    pct = (saved / src_chars * 100) if src_chars else 0.0
-    return {
-        "ok": True,
-        "src_chars": src_chars,
-        "out_chars": out_chars,
-        "saved_chars": saved,
-        "saved_pct": round(pct, 2),
-        "style_attrs": styles,
-        "unique_styles": unique_styles,
-        "wechat_limit": 20000,
-        "within_limit": out_chars <= 20000,
-    }
+def minify_inline_html(html_path: str, out_path: str = "") -> dict:
+    """无损压缩内联样式 HTML，返回压缩统计。
 
+    参数：
+        html_path: 输入 HTML 路径
+        out_path:  输出路径；留空则写到 <输入>.min.html
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="公众号内联样式 HTML 无损压缩")
-    ap.add_argument("html_path", help="输入 HTML 路径")
-    ap.add_argument("-o", "--out", default="", help="输出路径（默认 <输入>.min.html）")
-    args = ap.parse_args()
-
-    src = Path(args.html_path).expanduser()
+    返回 {ok, src_chars, out_chars, saved_chars, saved_pct, style_attrs,
+          unique_styles, wechat_limit, within_limit, output_file}。
+    """
+    src = Path(html_path).expanduser()
     if not src.is_file():
-        print(json.dumps({"ok": False, "error": f"文件不存在：{args.html_path}"}, ensure_ascii=False))
-        return 1
+        return {
+            "ok": False,
+            "error": f"文件不存在：{html_path}",
+            "src_chars": 0,
+            "out_chars": 0,
+            "saved_chars": 0,
+            "saved_pct": 0.0,
+            "style_attrs": 0,
+            "unique_styles": 0,
+            "wechat_limit": WECHAT_CONTENT_CHARS,
+            "within_limit": False,
+            "output_file": "",
+        }
 
     raw = src.read_text(encoding="utf-8")
     out_html = minify_html(raw)
 
     styles = _STYLE_ATTR_RE.findall(raw)
-    dst = Path(args.out).expanduser() if args.out else src.with_suffix(".min.html")
+    dst = Path(out_path).expanduser() if out_path else src.with_suffix(".min.html")
+    dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(out_html, encoding="utf-8")
 
-    result = report(len(raw), len(out_html), len(styles), len({s for _, s in styles}))
-    result["output_file"] = str(dst.resolve())
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    src_chars = len(raw)
+    out_chars = len(out_html)
+    saved = src_chars - out_chars
+    return {
+        "ok": True,
+        "src_chars": src_chars,
+        "out_chars": out_chars,
+        "saved_chars": saved,
+        "saved_pct": round((saved / src_chars * 100) if src_chars else 0.0, 2),
+        "style_attrs": len(styles),
+        "unique_styles": len({s for _, s in styles}),
+        "wechat_limit": WECHAT_CONTENT_CHARS,
+        "within_limit": out_chars <= WECHAT_CONTENT_CHARS,
+        "output_file": str(dst.resolve()),
+    }
