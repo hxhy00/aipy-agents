@@ -2,7 +2,7 @@
 
 ## 结论先讲：发布包不内置 ffmpeg
 
-发布到 GitHub Release 的 `doc-video.mcpb` **不含 ffmpeg 二进制**，用户需自行安装：
+发布到 GitHub Release 的 `doc-video.dxt` **不含 ffmpeg 二进制**，用户需自行安装：
 
 - macOS：`brew install ffmpeg`
 - Windows：`winget install Gyan.FFmpeg`
@@ -14,7 +14,7 @@ winget / scoop / chocolatey 落地位置等）中查找，用户装完即可用�
 ## 为什么不再内置
 
 1. **超过 GitHub Release 单文件 100MB 硬限制**：三平台全量 ffmpeg 约 126MB，
-   打包后的 `.mcpb` 约 140MB，push 到 Release 会被直接拒绝。
+   打包后的 `.dxt` 约 140MB，push 到 Release 会被直接拒绝。
 2. **仓库无法持有**：三平台原始二进制约 294MB，其中 `darwin-x64/ffprobe` 单文件约 79MB，
    已逼近 git 的硬上限，克隆与拉取成本不可接受。
 3. **多平台包只能分包**：要内置就得按平台出多个包，安装时容易选错，收益不抵复杂度。

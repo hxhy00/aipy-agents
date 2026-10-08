@@ -36,10 +36,10 @@
 
 | 项目 | 类型 | 技术栈 | 产物 | 体积 |
 |------|------|--------|------|------|
-| `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP + Pygments + Pillow | `wechat-sop-publish-assistant.mcpb` | 约 125 KB |
-| `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.mcpb` | 约 2 MB |
+| `agents/wechat-publish` | 工具型（conversation-tool） | Python 3.12 + uv + MCP + Pygments + Pillow | `wechat-sop-publish-assistant.dxt` | 约 125 KB |
+| `agents/doc-video` | 工具型（conversation-tool） | Node.js 22 + Bun + MCP | `doc-video.dxt` | 约 2 MB |
 
-> 公众号发布套件 2.0.0 起不再有独立的排版 skill 包：排版知识与预检能力已并入上面这一个 `.mcpb`，用户只装一个包。
+> 公众号发布套件 2.0.0 起不再有独立的排版 skill 包：排版知识与预检能力已并入上面这一个 `.dxt`，用户只装一个包。
 
 > `doc-video` 不再内置 ffmpeg。三平台全量约 126 MB，打包后超过 GitHub Release 单文件 100 MB 硬限制，
 > 改为要求用户自行安装（macOS：`brew install ffmpeg`；Windows：`winget install Gyan.FFmpeg`）。
@@ -88,7 +88,7 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 | 阶段 | 归属 | 本仓库的对应 |
 |------|------|--------------|
 | 代码提交后校验（语法、凭据泄露、目录约定） | **CI**（持续集成） | `check.yml`，push / PR 触发 |
-| 构建产物（打包 .mcpb） | **CI**（构建属于集成的延伸） | `release.yml` 的 `wechat-publish` / `doc-video` 两个 job |
+| 构建产物（打包 `.dxt`） | **CI**（构建属于集成的延伸） | `release.yml` 的 `wechat-publish` / `doc-video` 两个 job |
 | 发布产物到 Release（交付给用户） | **CD**（持续交付） | `release.yml` 的 `publish` job |
 
 业界把「构建 + 产出可交付物」通常统称 CI，「把产物送到用户手里」才叫 CD。本仓库两者放在同一个 workflow，通过 job 依赖串起来。注意这里只做到**交付**（Release 附件待人工确认），没有做到**部署**（自动上架到 AiPy 集市），所以严格说是 CD 中的「持续交付」而非「持续部署」。
@@ -97,10 +97,10 @@ bash scripts/fetch-ffmpeg.sh all          # 三平台全量，约 126 MB
 
 两个扩展通过**分扩展前缀 tag** 独立发版，互不影响：
 
-| 扩展 | tag 形式 | 触发 job |
-|------|----------|----------|
-| 公众号发布套件 | `wechat-v2.0.0` | `wechat-publish` |
-| 文档一键成片 | `doc-video-v1.0.0` | `doc-video` |
+| 扩展 | tag 形式 | 触发 job | 产物 |
+|------|----------|----------|------|
+| 公众号发布套件 | `wechat-v2.0.0` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
+| 文档一键成片 | `doc-video-v1.0.0` | `doc-video` | `doc-video.dxt` |
 
 ```bash
 # 1. 改版本号（tag 去掉对应前缀后必须等于 manifest 里的 version，CI 会校验）
@@ -135,11 +135,22 @@ git push origin doc-video-v1.0.0
 
 ### 打包器
 
-使用 `@anthropic-ai/mcpb@2.1.2`。原始包名 `@anthropic-ai/dxt` 已被官方废弃，产物扩展名从 `.dxt` 变为 `.mcpb`。
+构建用 `@anthropic-ai/mcpb@2.1.2`，但**产物后缀是 `.dxt`**。这两件事在上游公告里是连在一起说的，落到 AiPy 上却必须拆开，否则产物直接装不上：
+
+| 层面 | 事实 |
+|------|------|
+| 上游工具 | Anthropic 把打包 CLI 从 `@anthropic-ai/dxt` 改名为 `@anthropic-ai/mcpb`，产物默认后缀随之变成 `.mcpb` |
+| 目标平台 | AiPy 客户端**没有跟进这次改名**。AiPy Pro 2.1.0 的 `app.asar` 里，装扩展的后缀白名单写死为 `[".zip", ".dxt"]`，文件选择器只放行 `zip / dxt / md`，整个应用包内 `.mcpb` 出现 0 次；AiPy 商店所有扩展的下载链接也全部以 `.dxt` 结尾 |
+
+**打包工具叫什么，和产物能不能被平台装上，是两件事。** 平台认的是文件后缀白名单，不认 CLI 包名；本仓库的约定因此是「用 `mcpb` CLI 打包，显式指定 `.dxt` 输出名」。「打包成功」不等于「装得上」，所以 `release.yml` 里另有一条**产物后缀闸门**：只放行 `.zip` / `.dxt`，其他后缀直接判失败——把这条平台约束固化成 CI 断言，防止以后再被打包器默认值带偏。
+
+> 顺带说明改名为什么是安全的：`.dxt` 与 `.mcpb` 都是 zip 容器，改名后包内 `manifest.json` 哈希完全一致、内容零差异，且包内已有 AiPy 读取的 `"dxt_version": "0.1"`。所以改的只是文件名，不是包内容。
+
+**踩坑教训**：这类「上游弃用 / 上游改名」的结论，必须**以目标平台的后缀白名单实测为准**，不能直接套用上游公告。本次就是直接套用公告、把产物写成 `.mcpb`，结果 AiPy 装不上。对照物一直摆在官方规范里——规范至今仍写「选择 .dxt 文件导入」、示例产物是 `python.dxt`，那才是 AiPy 实际支持形态的准确描述。
 
 两个实测确认的行为差异：
 
-- `pack <目录>` 省略输出参数时，产物文件名取自**目录名**而非扩展名（在 `agents/wechat-publish/` 下会得到 `wechat-publish.mcpb`）。目录名与产物名不一致，因此脚本与 CI 一律显式指定输出文件名，保证产物固定为 `wechat-sop-publish-assistant.mcpb`。
+- `pack <目录>` 省略输出参数时，产物文件名取自**目录名**、后缀沿用打包器默认值（在 `agents/wechat-publish/` 下会得到 `wechat-publish.mcpb`）。目录名与目标产物名不一致，默认后缀平台又不认，因此脚本与 CI 一律显式指定输出文件名，产物固定为 `wechat-sop-publish-assistant.dxt`。
 - 打包器硬校验 `manifest.icon` 指向的文件必须是 **PNG**（读文件头魔数），SVG 会直接导致打包失败。本仓库保留 SVG 作为设计源文件，另生成 `icon.png` 供打包使用，转换命令：
 
 ```bash
@@ -150,7 +161,15 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 ### 打包忽略文件
 
-统一使用 `.mcpbignore`（新版打包器的规则文件名）。若目录下同时存在 `.dxtignore`，新版可能不再识别，导致虚拟环境等文件被误打进包。
+构建期的规则文件叫 `.mcpbignore`，产物后缀叫 `.dxt`。两个名字长得像，用途完全不同：
+
+| | `.mcpbignore` | `.dxt` |
+|---|-------------|------|
+| 是什么 | 打包时读取排除规则的**文件** | 打包产物的**文件名后缀** |
+| 谁在用 | `mcpb pack`，构建时读 | AiPy 客户端安装时按后缀白名单判断 |
+| 写错的后果 | 规则失效，`.venv` / `node_modules` 被整包打进产物 | 用户在客户端里选不中、装不上 |
+
+`.dxtignore` 是旧版打包器的规则文件名，混用会让排除规则整体失效。`check.yml` 里那条针对 `.dxtignore` 的检查是**有意保留**的：拦住有人误建或误用 `.dxtignore`，把 `.venv` 之类本该排除的目录打进包（该检查为警告级、不阻断流水线，但足以在 PR 里点出来）。
 
 公众号发布套件的忽略规则里有两条容易踩的：
 
@@ -159,14 +178,14 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 ### 为什么排版 skill 被合并进智能体
 
-2.0.0 之前，公众号发布套件发两个 AiPy 扩展：一个智能体（`.mcpb`）+ 一个 skill（`.zip`，需单独安装）。现在合并为一个智能体。合并的理由不是「少发一个文件」，而是 AiPy 规范里 **skill 与智能体是两种并列的项目类型**：
+2.0.0 之前，公众号发布套件发两个 AiPy 扩展：一个智能体（`.dxt`）+ 一个 skill（`.zip`，需单独安装）。现在合并为一个智能体。合并的理由不是「少发一个文件」，而是 AiPy 规范里 **skill 与智能体是两种并列的项目类型**：
 
 | | skill | 智能体 |
 |---|------|--------|
 | 模型怎么发现它 | 靠 `SKILL.md` 的 description 关键词被唤起 | 只把 MCP 工具暴露给模型 |
 | 脚本怎么执行 | 模型自己在终端敲命令 | 模型调用工具，由服务端执行 |
 
-把 skill 目录原样塞进 `.mcpb`，文件虽然在包里，但模型完全感知不到，`$skill名` 引用会失效——那是**静默丢功能**，不是合并。真正的合并是把 skill 的能力翻译成两层：
+把 skill 目录原样塞进 `.dxt`，文件虽然在包里，但模型完全感知不到，`$skill名` 引用会失效——那是**静默丢功能**，不是合并。真正的合并是把 skill 的能力翻译成两层：
 
 - **知识层**：排版 SOP、10 篇排版规范、19 个视觉素材搬进 `resources/`，由 `get_sop` / `get_reference` / `get_asset` 三个工具按白名单读取（只允许按文件名取，不接受任意路径）。
 - **工具层**：原来的 7 个脚本拆成两类——5 个变成独立工具（`extract_template_style`、`verify_html`、`verify_fidelity`、`minify_inline_html`、`render_code_images`），另 2 个与工具层已有实现合并（`read_draft`、`check_wechat_compat`，见下文「两处重复实现的合并」）。
@@ -177,7 +196,7 @@ sips -s format png -Z 512 icon.svg --out icon.png
 
 ### 代码块转图片为什么不用 Playwright
 
-原方案用 Playwright + Chromium 渲染代码块截图（约 150 MB），**装不进 `.mcpb`**。保留它等于用户装完包还要额外装浏览器，抵消了合并收益。改用 Pygments 自带的 `ImageFormatter` + Pillow，纯 Python 出图，实测中文注释能正常成像。
+原方案用 Playwright + Chromium 渲染代码块截图（约 150 MB），**装不进 `.dxt`**。保留它等于用户装完包还要额外装浏览器，抵消了合并收益。改用 Pygments 自带的 `ImageFormatter` + Pillow，纯 Python 出图，实测中文注释能正常成像。
 
 代价是要自己解决字体：Menlo、Consolas、DejaVu Sans Mono、Courier New 这些常见等宽字体都没有中文字形，直接用会把中文注释渲染成空白——读者看到的是「注释消失了」。实现按平台解析中文字体路径的候选链（macOS 苹方/宋体、Windows 微软雅黑、Linux 思源黑体/文泉驿），逐个用 Pillow 实际加载探测（只看文件存在会踩 Pillow 对部分字体集合支持有限的坑），macOS 实测命中 `Songti.ttc`。
 
@@ -233,3 +252,5 @@ sips -s format png -Z 512 icon.svg --out icon.png
 ## 注意
 
 `reference/` 目录为官方资料归档，其中的示例代码沿用了废弃的 `@anthropic-ai/dxt` 与旧目录约定，**仅作参考，不要照抄**。请以 `agents/` 下的实现为准。
+
+需要区分的是：规范里的 **`.dxt` 产物与 `.dxt` 安装流程是 AiPy 真实支持的形态**（照抄没错），需要跟上游一起更新的只有打包 CLI 与它的排除规则文件名（`@anthropic-ai/dxt` → `@anthropic-ai/mcpb`、`.dxtignore` → `.mcpbignore`，见「打包器」与「打包忽略文件」）。

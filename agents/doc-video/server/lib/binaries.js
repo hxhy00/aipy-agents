@@ -12,7 +12,7 @@
  *   4. 常见绝对路径（Homebrew / MacPorts / /usr/local / Windows 常见安装位置）
  *
  * 关于「不内置 ffmpeg」的决策（2026-09）：
- *   三平台全量 ffmpeg 约 126MB，打进单个 .mcpb 后会超过 GitHub Release 单文件 100MB 硬限制，
+ *   三平台全量 ffmpeg 约 126MB，打进单个 .dxt 后会超过 GitHub Release 单文件 100MB 硬限制，
  *   也无法正常入库分发。因此发布包不再内置，改由用户自行安装（brew / winget），
  *   第 2 步的查找逻辑保留：本地开发时把二进制放进 vendor/ 仍可自动命中，无需改代码。
  *

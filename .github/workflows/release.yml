@@ -26,13 +26,16 @@ concurrency:
 env:
   # 锁定打包器版本，避免上游升级导致产物结构突变。
   # 说明：@anthropic-ai/dxt 已被官方废弃并改名为 @anthropic-ai/mcpb，
-  #      新版命令为 `mcpb pack`，产物扩展名为 .mcpb。
+  #      新版命令为 `mcpb pack`。
+  # 产物后缀必须是 .dxt：AiPy Pro 2.1.0 的文件选择器只放行 zip/dxt/md，
+  # 安装前还有 [".zip",".dxt"].includes(后缀) 的硬校验，.mcpb 会被客户端直接拒绝。
+  # .dxt 与 .mcpb 同为 zip、只是文件名不同，因此保留新版打包器、只改输出名。
   MCPB_CLI: "@anthropic-ai/mcpb@2.1.2"
 
 jobs:
   # ---------------------------------------------------------------
   # 公众号发布套件（Python 工具型智能体，排版知识库已合并进智能体的 resources/）
-  # 自 2.0.0 起只发一个 .mcpb：原独立排版 skill 已并入 resources/，不再单独出包
+  # 自 2.0.0 起只发一个 .dxt：原独立排版 skill 已并入 resources/，不再单独出包
   # 无需构建步骤：Python 项目由宿主 uv 解析依赖，打包是纯 zip
   # ---------------------------------------------------------------
   wechat-publish:
@@ -68,12 +71,19 @@ jobs:
       - name: 打包智能体
         run: |
           cd agents/wechat-publish
-          npx -y ${MCPB_CLI} pack . wechat-sop-publish-assistant.mcpb
+          npx -y ${MCPB_CLI} pack . wechat-sop-publish-assistant.dxt
 
       - name: 校验产物内容
         run: |
           set -euo pipefail
-          PKG="agents/wechat-publish/wechat-sop-publish-assistant.mcpb"
+          PKG="agents/wechat-publish/wechat-sop-publish-assistant.dxt"
+          # 后缀闸门：AiPy Pro 安装前做 [".zip",".dxt"].includes(后缀) 校验，
+          # .mcpb 会被直接拒绝。「打包成功」不等于「装得上」，这里把该约束固化成闸门防回归。
+          EXT="${PKG##*.}"
+          case "${EXT}" in
+            zip|dxt) echo "产物后缀：.${EXT}（AiPy 可安装）" ;;
+            *) echo "::error::产物后缀 .${EXT} 不被 AiPy 接受（仅允许 .zip/.dxt），用户会装不上"; exit 1 ;;
+          esac
           # 清单只解一次并复用：既省掉重复解压，也避免 set -o pipefail 下
           # 「unzip -l | grep -q」因 grep 提前退出、反让 unzip 收到 SIGPIPE(141)
           # 而把管道状态判成非 0、误报「缺少必需文件」
@@ -130,7 +140,7 @@ jobs:
         with:
           name: wechat-publish
           path: |
-            agents/wechat-publish/wechat-sop-publish-assistant.mcpb
+            agents/wechat-publish/wechat-sop-publish-assistant.dxt
           if-no-files-found: error
 
   # ---------------------------------------------------------------
@@ -176,12 +186,19 @@ jobs:
       - name: 打包扩展
         run: |
           cd agents/doc-video
-          npx -y ${MCPB_CLI} pack . doc-video.mcpb
+          npx -y ${MCPB_CLI} pack . doc-video.dxt
 
       - name: 校验产物内容与体积
         run: |
           set -euo pipefail
-          PKG="agents/doc-video/doc-video.mcpb"
+          PKG="agents/doc-video/doc-video.dxt"
+          # 后缀闸门：AiPy Pro 安装前做 [".zip",".dxt"].includes(后缀) 校验，
+          # .mcpb 会被直接拒绝。「打包成功」不等于「装得上」，这里把该约束固化成闸门防回归。
+          EXT="${PKG##*.}"
+          case "${EXT}" in
+            zip|dxt) echo "产物后缀：.${EXT}（AiPy 可安装）" ;;
+            *) echo "::error::产物后缀 .${EXT} 不被 AiPy 接受（仅允许 .zip/.dxt），用户会装不上"; exit 1 ;;
+          esac
           echo "--- 产物清单 ---"
           unzip -l "$PKG"
           # 必需运行时文件
@@ -209,7 +226,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: doc-video
-          path: agents/doc-video/doc-video.mcpb
+          path: agents/doc-video/doc-video.dxt
           if-no-files-found: error
 
   # ---------------------------------------------------------------
@@ -236,21 +253,21 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
-          # 按文件名匹配（download-artifact 会保留上传时的子目录层级，如 dist/wechat-publish/wechat-sop-publish-assistant.mcpb）
+          # 按文件名匹配（download-artifact 会保留上传时的子目录层级，如 dist/wechat-publish/wechat-sop-publish-assistant.dxt）
           # 打 wechat-v* 只产生 wechat 一个产物，doc-video 路径不匹配属预期，不要开 fail_on_unmatched_files
           files: |
-            dist/**/wechat-sop-publish-assistant.mcpb
-            dist/**/doc-video.mcpb
+            dist/**/wechat-sop-publish-assistant.dxt
+            dist/**/doc-video.dxt
           body: |
             ## 安装方式
 
-            到 AiPy 客户端「集市 → 本地安装」选择扩展包：
+            到 AiPy 客户端「集市 → 本地安装」选择扩展包（请勿改名或改后缀，AiPy 只认 `.zip` / `.dxt`）：
 
             | 产物 | 类型 | 说明 |
             |------|------|------|
-            | `wechat-sop-publish-assistant.mcpb` | 智能体 | 公众号文章从终稿到草稿箱全流程（含排版 SOP 知识库），装一个包即可 |
-            | `doc-video.mcpb` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频） |
+            | `wechat-sop-publish-assistant.dxt` | 智能体 | 公众号文章从终稿到草稿箱全流程（含排版 SOP 知识库），装一个包即可 |
+            | `doc-video.dxt` | 智能体 | 文档一键成片（横屏讲解 / 竖屏短视频） |
 
-            > `doc-video.mcpb` 已不内置 ffmpeg（三平台全量约 126 MB，会超过 GitHub Release 单文件 100 MB 限制）。
+            > `doc-video.dxt` 已不内置 ffmpeg（三平台全量约 126 MB，会超过 GitHub Release 单文件 100 MB 限制）。
             > 使用前请先安装：macOS 执行 `brew install ffmpeg`，Windows 执行 `winget install Gyan.FFmpeg`。
             > 插件会自动在 PATH 与常见安装路径中查找；如仍检测不到，可在插件设置中用环境变量 `FFMPEG_PATH` 指定绝对路径。

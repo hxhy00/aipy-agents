@@ -56,7 +56,7 @@ bash ../../scripts/fetch-ffmpeg.sh all      # 三平台全量（约 126 MB）
 ## 打包
 
 ```bash
-bun run pack      # 等价于 npx @anthropic-ai/mcpb@2.1.2 pack . doc-video.mcpb
+bun run pack      # 等价于 npx @anthropic-ai/mcpb@2.1.2 pack . doc-video.dxt
 ```
 
 产物约 2 MB（`.mcpbignore` 已排除 `vendor/`）。若在本地临时移除 `/vendor/` 那行，

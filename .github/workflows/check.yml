@@ -150,9 +150,15 @@ jobs:
       - name: 检查打包忽略文件命名
         run: |
           set -euo pipefail
-          # 新版打包器读 .mcpbignore，旧版读 .dxtignore；两者混用会导致忽略规则失效
+          # 新版打包器读 .mcpbignore，旧版读 .dxtignore；两者混用会导致忽略规则失效。
+          # 易混淆点说明（务必分清，这是两个不同层面的东西）：
+          #   .mcpbignore —— 构建期规则文件，给 `mcpb pack` 读，决定哪些文件不进包；改名会直接把
+          #                  .venv / node_modules / vendor 打进产物，必须保持 .mcpbignore 不动。
+          #   .dxt       —— 产物文件后缀。AiPy Pro 只放行 .zip / .dxt，所以发版产物叫 xxx.dxt。
+          # 名字长得像、用途完全不同：正因为产物改叫 .dxt，才更要拦住「顺手把 .mcpbignore 改成
+          # .dxtignore」——新版打包器不认 .dxtignore，改名等于让全部忽略规则失效。
           if find agents -name '.dxtignore' | grep -q .; then
-            echo "::warning::发现遗留的 .dxtignore，新版打包器可能不再识别，建议统一为 .mcpbignore"
+            echo "::warning::发现遗留的 .dxtignore，新版打包器可能不再识别，建议统一为 .mcpbignore（注意：产物后缀 .dxt 与此无关，.mcpbignore 不要改名）"
             find agents -name '.dxtignore'
           else
             echo "OK: 未发现遗留的 .dxtignore"

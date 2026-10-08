@@ -84,7 +84,7 @@ publish_draft(html_path="排版.html", title="标题", cover_path="封面.png")
 
 ## 技术形态
 
-- AiPy 企业版 **Python 工具型**智能体（DXT / mcpb 规范）
+- AiPy 企业版 **Python 工具型**智能体（DXT 规范）
 - Streamable HTTP Server（`mcp 1.x` + Starlette + uvicorn，动态端口）
 - Python 3.12，依赖用 **uv** 管理
 - AppID / AppSecret 通过 `user_config` 注入环境变量
@@ -107,7 +107,7 @@ uv run main.py
 
 ## 交付物与内部分层
 
-自 2.0.0 起**只有一个交付物**：`wechat-sop-publish-assistant.mcpb`。排版知识库已合并进本智能体（随包打进 `resources/`），不再有需要单独安装的独立包。
+自 2.0.0 起**只有一个交付物**：`wechat-sop-publish-assistant.dxt`。排版知识库已合并进本智能体（随包打进 `resources/`），不再有需要单独安装的独立包。
 
 单包内部按职责分三层：
 
@@ -129,12 +129,14 @@ uv run main.py
 本地手动打包：
 
 ```bash
-npx @anthropic-ai/mcpb@2.1.2 pack . wechat-sop-publish-assistant.mcpb
-# 产物 wechat-sop-publish-assistant.mcpb，上传 AiPy 管理平台集市
+npx @anthropic-ai/mcpb@2.1.2 pack . wechat-sop-publish-assistant.dxt
+# 产物 wechat-sop-publish-assistant.dxt，上传 AiPy 管理平台集市
 ```
 
 > 打包器说明：`@anthropic-ai/dxt` 已被官方废弃并更名为 `@anthropic-ai/mcpb`，
-> 产物扩展名相应从 `.dxt` 变为 `.mcpb`。安装方式不变（AiPy 客户端本地安装）。
+> 但**改名的是打包 CLI，不是产物**：AiPy Pro 2.1.0 安装扩展的后缀白名单只有 `zip` / `dxt`，
+> `.mcpb` 会被客户端直接拒绝。所以沿用 `mcpb` CLI 打包，显式指定 `.dxt` 输出名。
+> 安装方式不变（AiPy 客户端本地安装）。背景见[仓库根 README](../../README.md)（打包器）。
 
 ## 已知限制
 

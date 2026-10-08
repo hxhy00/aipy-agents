@@ -20,7 +20,7 @@ desktop.ini
 !.vscode/extensions.json
 
 # ---------- 扩展打包产物 ----------
-# .mcpb 是新版打包器的产物；.dxt 是旧版，保留规则以防本地残留
+# .dxt 是发布产物（AiPy 后缀白名单只放行 zip / dxt）；.mcpb 是被淘汰的旧默认后缀，规则都保留以防本地残留
 *.mcpb
 *.dxt
 # skill 包与压缩交付物按需生成，不入库
