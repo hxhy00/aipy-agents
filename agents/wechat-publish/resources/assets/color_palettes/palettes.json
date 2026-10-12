@@ -10,5 +10,11 @@
   "china_red": {"canvas":"#F8F2E8","surface":"#FFFDF8","ink":"#302824","muted":"#796B62","primary":"#A43E31","accent":"#C49A54","line":"#E2D3BF"},
   "orange_event": {"canvas":"#FFF7F1","surface":"#FFFFFF","ink":"#3B2B25","muted":"#866F64","primary":"#D55B32","accent":"#F2A33B","line":"#F1D9C9"},
   "eco_green": {"canvas":"#F4F8F2","surface":"#FFFFFF","ink":"#29362B","muted":"#6C7B6D","primary":"#4C7A52","accent":"#A4B96A","line":"#DCE6D8"},
-  "silver_report": {"canvas":"#F3F5F7","surface":"#FFFFFF","ink":"#202B36","muted":"#6C7784","primary":"#41566B","accent":"#9A7B48","line":"#DCE2E7"}
+  "silver_report": {"canvas":"#F3F5F7","surface":"#FFFFFF","ink":"#202B36","muted":"#6C7784","primary":"#41566B","accent":"#9A7B48","line":"#DCE2E7"},
+  "kcon_warm_daily": {"canvas":"#FBFAF7","surface":"#FFFFFD","ink":"#221D18","muted":"#6D6861","primary":"#B51F1F","accent":"#B51F1F","line":"#E1DFDB"},
+  "kcon_meeting_olive": {"canvas":"#F9F7F1","surface":"#FFFDF9","ink":"#261D17","muted":"#6C6158","primary":"#106C3E","accent":"#106C3E","line":"#E0DAD1"},
+  "kcon_geek_indigo": {"canvas":"#FCFDFF","surface":"#F4F7FA","ink":"#111419","muted":"#656970","primary":"#006AE5","accent":"#006AE5","line":"#E1E3E7"},
+  "kcon_aged_report": {"canvas":"#F6F5EE","surface":"#FEFEF9","ink":"#30271F","muted":"#6C6158","primary":"#50453D","accent":"#50453D","line":"#DBD3C6"},
+  "kcon_essay_amber": {"canvas":"#FEFBF7","surface":"#FFFFFE","ink":"#26201C","muted":"#756D66","primary":"#B13E06","accent":"#B13E06","line":"#E4E1DB"},
+  "kcon_night_gold": {"canvas":"#101318","surface":"#1B1E25","ink":"#E9EBEF","muted":"#9499A0","primary":"#E3AE28","accent":"#E3AE28","line":"#32353D"}
 }

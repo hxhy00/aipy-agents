@@ -163,6 +163,7 @@ publish_draft(
 用 `get_asset(category="<类目>", name="<文件名>")` 取用下列素材：
 
 - `category="style_examples"`：完整视觉语言示例，只学习结构并替换为本篇参数。
+- `category="style_references"`：真实成稿的排版**视觉参考**，7 个文件对应日报体、杂志体、极客体、学术体、随笔体、深色评论体和目录体（对应行业见 `references/style_matrix.md` §1.1）。用法是**读它学视觉语言，不是拿来填字段的模板**：里面是真实原文、一个占位符都没有，因此不要替换字段、不要整体复制，只用来看真实字数下的落位——一行放多少字、一张卡片装几句、标题在多宽的栏里换行。用法与 `style_examples` 的区别是，`style_examples` 给的是可套用骨架，这里给的是成稿观感。先按风格矩阵定下基础风格，再取 1–2 份最接近的阅读，不要通读。
 - `category="color_palettes"`（`palettes.json`）：角色化配色数据。
 - `category="icons"`：可内联的原创几何图标与装饰。
 - `category="dividers"`：微信兼容的章节分隔组件。
