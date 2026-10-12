@@ -46,7 +46,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wechat-sop-publish-assistant")
 
-app = Server("wechat-sop-publish-assistant", version="2.0.3")
+# 版本号的唯一来源是 manifest.json（AiPy 客户端读的扩展元数据）。
+# uv 只认 pyproject.toml 与 uv.lock，不认识 manifest.json，所以发版时用 jq 把
+# uv 的版本号桥接进来（见仓库根 README 的「发版步骤」）；这里再从同一文件读出来，
+# 源码里就不必留任何版本字符串，也就没有第三个可漂移的点。
+# 刻意不加 try/except 兜底：manifest.json 是打包必需文件（release.yml 会校验它进包），
+# 读不到就是包坏了，应该响亮失败，而不是静默降级成一个假版本号。
+_MANIFEST_PATH = Path(__file__).resolve().parent / "manifest.json"
+VERSION: str = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))["version"]
+
+app = Server("wechat-sop-publish-assistant", version=VERSION)
 
 TOOL_PUBLISH = "publish_draft"
 TOOL_CHECK = "check_text"

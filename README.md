@@ -71,21 +71,42 @@ uv run main.py
 
 | 扩展 | tag 形式 | 触发 job | 产物 |
 |------|----------|----------|------|
-| 公众号发布套件 | `wechat-v2.0.2` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
+| 公众号发布套件 | `wechat-v$(uv version --short)` | `wechat-publish` | `wechat-sop-publish-assistant.dxt` |
+
+> 上表里的版本号不是手写的：`uv version --short` 始终返回当前 `pyproject.toml` 的版本，发版时把它升好，tag 直接照抄即可。
+
+**版本号不再手改。** 这件事以前散在四个位置、其中三个靠人记，漏改就会漂移（`uv.lock` 一度停在 2.0.0，而包内 manifest 已是 2.0.3，而 `uv.lock` 随包分发，用户装出来就是错的）：
+
+| 位置 | 由谁维护 |
+|------|---------|
+| `agents/wechat-publish/pyproject.toml` | `uv`（`uv version --bump`） |
+| `agents/wechat-publish/uv.lock` 项目条目 | `uv`（`uv version` / `uv lock` 同步写） |
+| `agents/wechat-publish/manifest.json` | `jq` 桥接 `uv` 的输出 |
+| `agents/wechat-publish/main.py` | 无版本号——从 `manifest.json` 读 |
+
+**四个位置里三个由工具管，第四个由代码读取消除手改。** 具体分工：`uv` 只认 `pyproject.toml` 与 `uv.lock`，`manifest.json` 是 AiPy 客户端读的扩展元数据、`uv` 不认识它（`uv version` 也没有 `--output-file` 之类的选项能写它），所以用 `jq` 把 `uv` 的版本号桥接进去；而 `main.py` 里原先硬编码的 `Server(..., version=...)` 已改成读 `manifest.json`，源码中不再存在版本字符串，也就没有可漂移的第三个点。刻意不给这段读取加兜底：`manifest.json` 是打包必需文件（`release.yml` 会校验它在包内），读不到就是包坏了，应该响亮失败而不是静默降级成一个假版本号。
 
 ```bash
-# 1. 改版本号（tag 去掉对应前缀后必须等于 manifest 里的 version，CI 会校验）
-#    公众号发布套件：agents/wechat-publish/manifest.json 的 version
-#                    （同时需与同目录 pyproject.toml 的 version 一致）
+cd agents/wechat-publish
+# 1. 升版本：uv 同时更新 pyproject.toml 与 uv.lock（依赖 pin 不变）
+uv version --bump patch --no-sync
+# 2. 把同一个版本写进 manifest.json（AiPy 读的扩展元数据，uv 不认识它）
+#    重定向到临时文件再 mv 是必须的：jq 默认只把结果打到 stdout，
+#    漏了重定向它会把整份 JSON 打印出来而文件原封不动（实测踩过）
+jq --arg v "$(uv version --short)" '.version = $v' manifest.json > manifest.json.tmp \
+  && mv manifest.json.tmp manifest.json
+# 3. 确认三处一致（可选，CI 也会校验）
+uv version --short && jq -r .version manifest.json
 
-# 2. 打 tag 并推送
-git tag wechat-v2.0.2
-git push origin wechat-v2.0.2
+# 4. 打 tag 并推送：版本号从 uv 取，不手抄
+#    （tag 去掉前缀后必须等于 manifest 里的 version，CI 会校验）
+git tag "wechat-v$(uv version --short)"
+git push origin "wechat-v$(uv version --short)"
 ```
 
 推送 tag 后 CI 自动完成：
 
-1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败；同时校验 `pyproject.toml`）
+1. 校验 tag 版本与 `manifest.json` 版本一致（不一致直接失败；同时校验 `pyproject.toml`；`uv.lock` 的项目条目由 `uv` 维护，无需校验）
 2. 打包智能体（知识库随包走，不单独产出 zip）
 3. 校验产物内容（必需文件是否齐全、虚拟环境 / 源码是否误入包、失效引用是否写回文档、体积是否异常）
 4. 创建 GitHub Release 并上传本次构建的产物
@@ -141,7 +162,7 @@ sips -s format png -Z 512 icon.svg --out icon.png
 公众号发布套件的忽略规则里有两条容易踩的：
 
 - `resources/` 下的 `.md` **必须保留**——那是模型直接读取的知识层，排除掉等于智能体没了排版能力。排除的是根级 `README.md`（开发说明，给维护者看的，不随包分发）。
-- **`uv.lock` 必须保留进包**——本扩展不是构建产物而是源码直跑，宿主以 `uv run` 启动（见 `manifest.json`），锁文件是用户机器上依赖解析可复现的唯一依据。排除它等于把版本漂移留给终端用户；「它不是源码所以不该进包」是误判。
+- **`uv.lock` 必须保留进包**——本扩展不是构建产物而是源码直跑，宿主以 `uv run` 启动（见 `manifest.json`），锁文件是用户机器上依赖解析可复现的唯一依据。排除它等于把版本漂移留给终端用户；「它不是源码所以不该进包」是误判。它同时也是版本漂移的放大器：锁文件里也有一份项目版本号，随包分发后与 manifest 对不上会直接被用户看到，所以发版必须用 `uv version`（它会一并更新锁文件），不能让锁文件停在旧版本。
 - 当前产物 52 个文件、约 197 KB，其中 `resources/` 占 31 个（`uv.lock` 随包后新增 1 个文件、约 224 KB 未压缩）。体积上限校验在 `release.yml`，知识库变大时会先被拦下。
 
 ### 为什么排版 skill 被合并进智能体
